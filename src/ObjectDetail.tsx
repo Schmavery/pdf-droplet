@@ -2,12 +2,14 @@ import React from "react";
 import type { ObjectEntry, PDFVal } from "@/App";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
+import ObjectBacklinks from "./ObjectBacklinks";
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { ObjectBreadcrumb } from "@/ObjectBreadcrumb";
+import type { Stream } from "@pdfjs/core/stream";
 
 function DictEntryRow({
   keyLabel,
@@ -242,14 +244,14 @@ export default function ObjectDetail(props: {
               {val === "" ? '""' : val}
             </span>
           )}
-          {val instanceof FlateStream && (
+          {val && typeof val === "object" && "dict" in val && (
             <DictEntries
-              dict={val.dict}
+              dict={(val as unknown as Stream).dict}
               depth={0}
               onRefClick={props.onRefClick}
             />
           )}
-          {val instanceof FlateStream && (
+          {val && val instanceof FlateStream && (
             <pre className="bg-gray-100 p-2 rounded mt-2 overflow-x-auto">
               {new TextDecoder("utf-8").decode(val.buffer)}
             </pre>
@@ -257,12 +259,19 @@ export default function ObjectDetail(props: {
           {/* Fallback for other primitives */}
           {!(val instanceof Dict) &&
             !Array.isArray(val) &&
-            !(val instanceof FlateStream) &&
+            !(val && typeof val === "object" && "dict" in val) &&
             typeof val !== "string" && (
               <span style={{ fontFamily: "monospace", fontSize: 14 }}>
                 {String(val)}
               </span>
             )}
+          {/* Backlinks section */}
+          {props.object.backlinks && props.object.backlinks.length > 0 && (
+            <ObjectBacklinks
+              backlinks={props.object.backlinks}
+              onRefClick={props.onRefClick}
+            />
+          )}
         </div>
       )}
     </div>

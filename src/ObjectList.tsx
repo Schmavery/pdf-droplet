@@ -1,32 +1,7 @@
-import type { ObjectEntry, PDFVal } from "@/App";
+import type { ObjectEntry } from "@/App";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FlateStream } from "@pdfjs/core/flate_stream";
-import { Dict, Ref } from "@pdfjs/core/primitives";
-import { Stream } from "@pdfjs/core/stream";
-
-function getObjectType(val: PDFVal): string {
-  console.log("Determining type for value:", val);
-  switch (true) {
-    case val === null:
-      return "null";
-    case typeof val === "number":
-      return "number";
-    case typeof val === "string":
-      return "string";
-    case val instanceof Array:
-      return "array";
-    case val instanceof Ref:
-      return "ref";
-    case val instanceof Dict:
-      return "dict";
-    case val instanceof Stream:
-      return "stream";
-    case val instanceof FlateStream:
-      return "stream C";
-    default:
-      return "unknown";
-  }
-}
+import { getObjectType } from "@/object-utils";
+import { Ref } from "@pdfjs/core/primitives";
 
 function ListItem(props: { entry: ObjectEntry; onClick?: () => void }) {
   console.log("Rendering ListItem for entry:", props.entry);

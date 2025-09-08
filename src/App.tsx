@@ -13,6 +13,8 @@ import ObjectList from "@/ObjectList";
 import ObjectDetail from "@/ObjectDetail";
 import PdfView from "@/PdfView";
 import { BaseStream } from "@pdfjs/core/base_stream";
+import { FlateStream } from "@pdfjs/core/flate_stream";
+import { Stream } from "@pdfjs/core/stream";
 
 export type PDFVal =
   | Dict
@@ -22,10 +24,45 @@ export type PDFVal =
   | string
   | typeof CIRCULAR_REF;
 
-export type ObjectEntry = {
+export type Backlink = {
   ref: Ref;
   val: PDFVal;
 };
+
+export type ObjectEntry = {
+  ref: Ref;
+  val: PDFVal;
+  backlinks?: Backlink[];
+};
+
+// Utility to recursively find all Refs in a value
+function findRefs(val: PDFVal): Ref[] {
+  const refs: Ref[] = [];
+  if (val instanceof Ref) {
+    refs.push(val);
+  } else if (val instanceof Dict) {
+    for (const v of val._map.values()) {
+      refs.push(...findRefs(v));
+    }
+  } else if (Array.isArray(val)) {
+    for (const v of val) {
+      refs.push(...findRefs(v));
+    }
+  } else if (val && (val instanceof FlateStream || val instanceof Stream)) {
+    const dictVal = val.dict;
+    if (dictVal) refs.push(...findRefs(dictVal));
+  }
+  return refs;
+}
+
+// Find backlinks for a given Ref
+function getBacklinks(objects: ObjectEntry[], targetRef: Ref): ObjectEntry[] {
+  return objects.filter((obj) => {
+    if (!obj.val) return false;
+    const refs = findRefs(obj.val);
+    return refs.some((r) => isRefsEqual(r, targetRef));
+  });
+}
 
 function App() {
   const [manager, setManager] = useState<LocalPdfManager | undefined>();
@@ -56,11 +93,18 @@ function App() {
         .map(([key, value]) => {
           const ref = new Ref(parseInt(key), value.gen);
           const val = manager.pdfDocument.xref.fetch(ref);
-          return { ref, val };
+          return { ref, val, backlinks: [] } as ObjectEntry;
         }) as ObjectEntry[];
+      entries.forEach((entry) => {
+        entry.backlinks = getBacklinks(entries, entry.ref);
+      });
       setObjects(entries);
     }
   }, [manager]);
+
+  const currentObject = breadcrumb.length
+    ? objects.find((e) => isRefsEqual(e.ref, breadcrumb[breadcrumb.length - 1]))
+    : undefined;
 
   return (
     <div className="h-screen w-full bg-gray-100">
@@ -76,6 +120,7 @@ function App() {
             <ResizableHandle />
             <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mb-2 ml-2">
               <ObjectDetail
+                key={currentObject ? currentObject.ref.toString() : "no-object"}
                 breadcrumb={breadcrumb}
                 onBreadcrumbNavigate={(i) => {
                   const newBreadcrumb = breadcrumb.slice(0, i + 1);
@@ -89,13 +134,7 @@ function App() {
                     setBreadcrumb([...breadcrumb, entry.ref]);
                   }
                 }}
-                object={
-                  breadcrumb.length
-                    ? objects.find((e) =>
-                        isRefsEqual(e.ref, breadcrumb[breadcrumb.length - 1])
-                      )
-                    : undefined
-                }
+                object={currentObject}
               />
             </ResizablePanel>
           </ResizablePanelGroup>
