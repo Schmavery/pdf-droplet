@@ -482,7 +482,7 @@ addState(
 addState(
   InitialState,
   [OPS.save, OPS.transform, OPS.constructPath, OPS.restore],
-  context => {
+  (context) => {
     const argsArray = context.argsArray;
     const iFirstConstructPath = context.iCurr - 1;
     const op = argsArray[iFirstConstructPath][0];
@@ -669,8 +669,12 @@ class OperatorList {
     this._resolved = streamSink ? null : Promise.resolve();
   }
 
+  /**
+   *
+   * @param {EvaluatorOptions} opts
+   */
   static setOptions({ isOffscreenCanvasSupported }) {
-    this.isOffscreenCanvasSupported = isOffscreenCanvasSupported;
+    this.isOffscreenCanvasSupported = !!isOffscreenCanvasSupported;
   }
 
   get length() {

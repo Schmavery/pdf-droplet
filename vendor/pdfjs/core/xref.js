@@ -31,22 +31,45 @@ import {
 } from "./core_utils.js";
 import { BaseStream } from "./base_stream.js";
 import { CipherTransformFactory } from "./crypto.js";
+import { Stream } from "@pdfjs/core/stream.js";
+
+/**
+ * @typedef {Object} XRefEntry
+ * @property {number} offset
+ * @property {number} gen
+ * @property {boolean} [free]
+ * @property {boolean} [uncompressed]
+ */
 
 class XRef {
   #firstXRefStmPos = null;
 
+  /**
+   * @param {import("./stream.js").Stream | import("./chunked_stream.js").ChunkedStream} stream
+   * @param {any} pdfManager
+   */
   constructor(stream, pdfManager) {
     this.stream = stream;
     this.pdfManager = pdfManager;
+    /**
+     * @type {Array<XRefEntry>}
+     */
     this.entries = [];
     this._xrefStms = new Set();
+    /**
+     * @type {Map<number, Dict | BaseStream | number | null | typeof CIRCULAR_REF>}
+     */
     this._cacheMap = new Map(); // Prepare the XRef cache.
     this._pendingRefs = new RefSet();
     this._newPersistentRefNum = null;
     this._newTemporaryRefNum = null;
     this._persistentRefsCache = null;
+    this.root = null;
   }
 
+  /**
+   * @param {any} obj
+   */
   getNewPersistentRef(obj) {
     // When printing we don't care that much about the ref number by itself, it
     // can increase for ever and it allows to keep some re-usable refs.
@@ -92,6 +115,9 @@ class XRef {
     this._persistentRefsCache = null;
   }
 
+  /**
+   * @param {number} startXRef
+   */
   setStartXRef(startXRef) {
     // Store the starting positions of xref tables as we process them
     // so we can recover from missing data errors
@@ -134,7 +160,7 @@ class XRef {
     }
 
     // Get the root dictionary (catalog) object, and do some basic validation.
-    let root;
+    let root = null;
     try {
       root = trailerDict.get("Root");
     } catch (ex) {
@@ -165,18 +191,10 @@ class XRef {
     throw new InvalidPDFException("Invalid Root reference.");
   }
 
+  /**
+   * @param {Parser} parser
+   */
   processXRefTable(parser) {
-    if (!("tableState" in this)) {
-      // Stores state of the table as we process it so we can resume
-      // from middle of table in case of missing data error
-      this.tableState = {
-        entryNum: 0,
-        streamPos: parser.lexer.stream.pos,
-        parserBuf1: parser.buf1,
-        parserBuf2: parser.buf2,
-      };
-    }
-
     const obj = this.readXRefTable(parser);
 
     // Sanity check
@@ -210,7 +228,30 @@ class XRef {
     return dict;
   }
 
+  /**
+   * @param {{ lexer: { stream: any; }; buf1: any; buf2: any; getObj: () => any; }} parser
+   */
   readXRefTable(parser) {
+    if (!this.tableState) {
+      // Stores state of the table as we process it so we can resume
+      // from middle of table in case of missing data error
+      /**
+       * @typedef {Object} XRefTableState
+       * @property {number} entryNum
+       *  @property {number} streamPos
+       * @property {any} parserBuf1
+       * @property {any} parserBuf2
+       * @property {number} [firstEntryNum]
+       * @property {number} [entryCount]
+       */
+      /** @type {XRefTableState} */
+      this.tableState = {
+        entryNum: 0,
+        streamPos: parser.lexer.stream.pos,
+        parserBuf1: parser.buf1,
+        parserBuf2: parser.buf2,
+      };
+    }
     // Example of cross-reference table:
     // xref
     // 0 1                    <-- subsection header (first obj #, obj count)
@@ -241,7 +282,11 @@ class XRef {
 
       let first = tableState.firstEntryNum;
       const count = tableState.entryCount;
-      if (!Number.isInteger(first) || !Number.isInteger(count)) {
+      if (
+        count == undefined ||
+        !Number.isInteger(first) ||
+        !Number.isInteger(count)
+      ) {
         throw new FormatError(
           "Invalid XRef table: wrong types in subsection header"
         );
@@ -253,6 +298,7 @@ class XRef {
         tableState.parserBuf1 = parser.buf1;
         tableState.parserBuf2 = parser.buf2;
 
+        /** @type {XRefEntry} */
         const entry = {};
         entry.offset = parser.getObj();
         entry.gen = parser.getObj();
@@ -271,6 +317,7 @@ class XRef {
 
         // Validate entry obj
         if (
+          first === undefined ||
           !Number.isInteger(entry.offset) ||
           !Number.isInteger(entry.gen) ||
           !(entry.free || entry.uncompressed)
@@ -306,6 +353,9 @@ class XRef {
     return obj;
   }
 
+  /**
+   * @param {BaseStream} stream
+   */
   processXRefStream(stream) {
     if (!("streamState" in this)) {
       // Stores state of the stream as we process it so we can resume
@@ -327,6 +377,9 @@ class XRef {
     return stream.dict;
   }
 
+  /**
+   * @param {{ pos: any; getByte: () => any; }} stream
+   */
   readXRefStream(stream) {
     const streamState = this.streamState;
     stream.pos = streamState.streamPos;
@@ -418,6 +471,10 @@ class XRef {
     const PERCENT = 0x25,
       LT = 0x3c;
 
+    /**
+     * @param {string | any[]} data
+     * @param {number} offset
+     */
     function readToken(data, offset) {
       let token = "",
         ch = data[offset];
@@ -430,6 +487,11 @@ class XRef {
       }
       return token;
     }
+    /**
+     * @param {string | any[]} data
+     * @param {number} offset
+     * @param {string | any[] | Uint8Array<ArrayBuffer>} what
+     */
     function skipUntil(data, offset, what) {
       const length = what.length,
         dataLength = data.length;
@@ -718,6 +780,10 @@ class XRef {
     // circular dependency between tables (fixes bug1393476.pdf).
     const startXRefParsedCache = new Set();
 
+    if (!this.startXRefQueue || this.startXRefQueue.length === 0) {
+      throw new XRefParseException("No startXRef position found in PDF file.");
+    }
+
     while (this.startXRefQueue.length) {
       try {
         const startXRef = this.startXRefQueue[0];
@@ -800,7 +866,7 @@ class XRef {
     if (recoveryMode) {
       return undefined;
     }
-    throw new XRefParseException();
+    throw new XRefParseException("Failed to read any XRef table or stream.");
   }
 
   get lastXRefStreamPos() {
@@ -810,6 +876,9 @@ class XRef {
     );
   }
 
+  /**
+   * @param {number} i
+   */
   getEntry(i) {
     const xrefEntry = this.entries[i];
     if (xrefEntry && !xrefEntry.free && xrefEntry.offset) {
@@ -818,6 +887,9 @@ class XRef {
     return null;
   }
 
+  /**
+   * @param {any} obj
+   */
   fetchIfRef(obj, suppressEncryption = false) {
     if (obj instanceof Ref) {
       return this.fetch(obj, suppressEncryption);
@@ -825,6 +897,10 @@ class XRef {
     return obj;
   }
 
+  /**
+   * @param {Ref} ref
+   * @returns {Dict | BaseStream | number | null | typeof CIRCULAR_REF}
+   */
   fetch(ref, suppressEncryption = false) {
     if (!(ref instanceof Ref)) {
       throw new Error("ref object is not a reference");
@@ -876,6 +952,10 @@ class XRef {
     return xrefEntry;
   }
 
+  /**
+   * @param {Ref} ref
+   * @param {{ gen: number; offset: any; }} [xrefEntry]
+   */
   fetchUncompressed(ref, xrefEntry, suppressEncryption = false) {
     const gen = ref.gen;
     let num = ref.num;
@@ -933,6 +1013,10 @@ class XRef {
     return xrefEntry;
   }
 
+  /**
+   * @param {Ref} ref
+   * @param {{ offset: any; gen: string | number; } | undefined} xrefEntry
+   */
   fetchCompressed(ref, xrefEntry, suppressEncryption = false) {
     const tableOffset = xrefEntry.offset;
     const stream = this.fetch(Ref.get(tableOffset, 0));
@@ -1018,6 +1102,10 @@ class XRef {
     return xrefEntry;
   }
 
+  /**
+   * @param {any} obj
+   * @param {any} suppressEncryption
+   */
   async fetchIfRefAsync(obj, suppressEncryption) {
     if (obj instanceof Ref) {
       return this.fetchAsync(obj, suppressEncryption);
@@ -1025,6 +1113,10 @@ class XRef {
     return obj;
   }
 
+  /**
+   * @param {Ref} ref
+   * @param {boolean | undefined} [suppressEncryption]
+   */
   async fetchAsync(ref, suppressEncryption) {
     try {
       return this.fetch(ref, suppressEncryption);

@@ -15,10 +15,13 @@
 
 import { BaseException, warn } from "../shared/util.js";
 import { fetchBinaryData } from "./core_utils.js";
-import OpenJPEG from "../../external/openjpeg/openjpeg.js";
+import OpenJPEG from "../external/openjpeg/openjpeg.js";
 import { Stream } from "./stream.js";
 
 class JpxError extends BaseException {
+  /**
+   * @param {string} msg
+   */
   constructor(msg) {
     super(msg, "JpxError");
   }
@@ -35,18 +38,26 @@ class JpxImage {
 
   static #useWorkerFetch = true;
 
+  /** @type {string | null} */
   static #wasmUrl = null;
 
+  /**
+   *
+   * @param {EvaluatorOptions & {handler: any}} param0
+   */
   static setOptions({ handler, useWasm, useWorkerFetch, wasmUrl }) {
-    this.#useWasm = useWasm;
-    this.#useWorkerFetch = useWorkerFetch;
-    this.#wasmUrl = wasmUrl;
+    this.#useWasm = !!useWasm;
+    this.#useWorkerFetch = !!useWorkerFetch;
+    this.#wasmUrl = wasmUrl ?? null;
 
     if (!useWorkerFetch) {
       this.#handler = handler;
     }
   }
 
+  /**
+   * @param {(arg0: any) => void} fallbackCallback
+   */
   static async #getJsModule(fallbackCallback) {
     const path =
       typeof PDFJSDev === "undefined"
@@ -65,6 +76,11 @@ class JpxImage {
     fallbackCallback(instance);
   }
 
+  /**
+   * @param {any} fallbackCallback
+   * @param {WebAssembly.Imports | undefined} imports
+   * @param {(arg0: WebAssembly.Instance) => any} successCallback
+   */
   static async #instantiateWasm(fallbackCallback, imports, successCallback) {
     const filename = "openjpeg.wasm";
     try {
@@ -90,6 +106,9 @@ class JpxImage {
     }
   }
 
+  /**
+   * @param {string | any[]} bytes
+   */
   static async decode(
     bytes,
     {
@@ -156,6 +175,9 @@ class JpxImage {
     this.#modulePromise = null;
   }
 
+  /**
+   * @param {Stream} stream
+   */
   static parseImageProperties(stream) {
     if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("IMAGE_DECODERS")) {
       if (stream instanceof ArrayBuffer || ArrayBuffer.isView(stream)) {

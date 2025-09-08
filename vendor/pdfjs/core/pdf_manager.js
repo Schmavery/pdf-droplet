@@ -30,6 +30,18 @@ import { PDFDocument } from "./document.js";
 import { Stream } from "./stream.js";
 
 /**
+ * typedef {Object} EvaluatorOptions
+ * @property {number} [canvasMaxAreaInBytes]
+ * @property {boolean} [isImageDecoderSupported]
+ * @property {boolean} [isOffscreenCanvasSupported]
+ * @property {*} [handler]
+ * @property {boolean} [useWasm]
+ * @property {boolean} [useWorkerFetch]
+ * @property {string} [wasmUrl]
+ * @property {string} [iccUrl]
+ */
+
+/**
  *
  * @param {string | null} url
  * @returns
@@ -48,16 +60,16 @@ function parseDocBaseUrl(url) {
 class BasePdfManager {
   /**
    * @param {object} args
-   * @param {*} args.source
-   * @param {*} args.disableAutoFetch
-   * @param {*} args.docBaseUrl
-   * @param {*} args.docId
-   * @param {*} args.enableXfa
-   * @param {*} args.evaluatorOptions
+   * @param {*} [args.source]
+   * @param {*} [args.disableAutoFetch]
+   * @param {*} [args.docBaseUrl]
+   * @param {*} [args.docId]
+   * @param {*} [args.enableXfa]
+   * @param {EvaluatorOptions} args.evaluatorOptions
    * @param {*} args.handler
-   * @param {*} args.length
-   * @param {*} args.password
-   * @param {*} args.rangeChunkSize
+   * @param {*} [args.length]
+   * @param {*} [args.password]
+   * @param {*} [args.rangeChunkSize]
    */
   constructor({
     // source,
@@ -82,6 +94,10 @@ class BasePdfManager {
       FeatureTest.isOffscreenCanvasSupported;
     evaluatorOptions.isImageDecoderSupported &&=
       FeatureTest.isImageDecoderSupported;
+
+    /**
+     * @type {EvaluatorOptions}
+     */
     this.evaluatorOptions = Object.freeze(evaluatorOptions);
 
     // Initialize image-options once per document.
@@ -107,22 +123,41 @@ class BasePdfManager {
     return this._docBaseUrl;
   }
 
+  /**
+   * @param {any} prop
+   * @param {any} args
+   */
   ensureDoc(prop, args) {
     return this.ensure(this.pdfDocument, prop, args);
   }
 
+  /**
+   * @param {any} prop
+   * @param {any} args
+   */
   ensureXRef(prop, args) {
     return this.ensure(this.pdfDocument.xref, prop, args);
   }
 
+  /**
+   * @param {any} prop
+   * @param {any} args
+   */
   ensureCatalog(prop, args) {
     return this.ensure(this.pdfDocument.catalog, prop, args);
   }
 
+  /**
+   * @param {any} pageIndex
+   */
   getPage(pageIndex) {
     return this.pdfDocument.getPage(pageIndex);
   }
 
+  /**
+   * @param {any} id
+   * @param {any} handler
+   */
   fontFallback(id, handler) {
     return this.pdfDocument.fontFallback(id, handler);
   }
@@ -131,27 +166,45 @@ class BasePdfManager {
     return this.pdfDocument.cleanup(manuallyTriggered);
   }
 
-  async ensure(obj, prop, args) {
+  /**
+   * @param {any} _obj
+   * @param {any} _prop
+   * @param {any} _args
+   */
+  async ensure(_obj, _prop, _args) {
     unreachable("Abstract method `ensure` called");
   }
 
-  requestRange(begin, end) {
+  /**
+   * @param {any} _begin
+   * @param {any} _end
+   */
+  requestRange(_begin, _end) {
     unreachable("Abstract method `requestRange` called");
   }
 
-  requestLoadedStream(noFetch = false) {
+  requestLoadedStream(_noFetch = false) {
     unreachable("Abstract method `requestLoadedStream` called");
   }
 
-  sendProgressiveData(chunk) {
+  /**
+   * @param {any} _chunk
+   */
+  sendProgressiveData(_chunk) {
     unreachable("Abstract method `sendProgressiveData` called");
   }
 
+  /**
+   * @param {any} password
+   */
   updatePassword(password) {
     this._password = password;
   }
 
-  terminate(reason) {
+  /**
+   * @param {any} _reason
+   */
+  terminate(_reason) {
     unreachable("Abstract method `terminate` called");
   }
 }
@@ -159,16 +212,16 @@ class BasePdfManager {
 class LocalPdfManager extends BasePdfManager {
   /**
    * @param {object} args
-   * @param {*} args.source
-   * @param {*} args.disableAutoFetch
-   * @param {*} args.docBaseUrl
-   * @param {*} args.docId
-   * @param {*} args.enableXfa
-   * @param {*} args.evaluatorOptions
-   * @param {*} args.handler
-   * @param {*} args.length
-   * @param {*} args.password
-   * @param {*} args.rangeChunkSize
+   * @param {Uint8Array | ArrayBuffer} args.source
+   * @param {*} [args.disableAutoFetch]
+   * @param {*} [args.docBaseUrl]
+   * @param {*} [args.docId]
+   * @param {*} [args.enableXfa]
+   * @param {EvaluatorOptions} args.evaluatorOptions
+   * @param {*} [args.handler]
+   * @param {*} [args.length]
+   * @param {*} [args.password]
+   * @param {*} [args.rangeChunkSize]
    */
   constructor(args) {
     super(args);
@@ -178,6 +231,11 @@ class LocalPdfManager extends BasePdfManager {
     this._loadedStreamPromise = Promise.resolve(stream);
   }
 
+  /**
+   * @param {{ [x: string]: any; }} obj
+   * @param {string | number} prop
+   * @param {any} args
+   */
   async ensure(obj, prop, args) {
     const value = obj[prop];
     if (typeof value === "function") {
@@ -186,18 +244,28 @@ class LocalPdfManager extends BasePdfManager {
     return value;
   }
 
-  requestRange(begin, end) {
+  /**
+   * @param {any} _begin
+   * @param {any} _end
+   */
+  requestRange(_begin, _end) {
     return Promise.resolve();
   }
 
-  requestLoadedStream(noFetch = false) {
+  requestLoadedStream(_noFetch = false) {
     return this._loadedStreamPromise;
   }
 
-  terminate(reason) {}
+  /**
+   * @param {any} _reason
+   */
+  terminate(_reason) {}
 }
 
 class NetworkPdfManager extends BasePdfManager {
+  /**
+   * @param {{ source: any; disableAutoFetch: any; docBaseUrl: any; docId?: any; enableXfa?: any; evaluatorOptions?: EvaluatorOptions; handler: any; length: any; password?: any; rangeChunkSize: any; }} args
+   */
   constructor(args) {
     super(args);
 
@@ -210,6 +278,11 @@ class NetworkPdfManager extends BasePdfManager {
     this.pdfDocument = new PDFDocument(this, this.streamManager.getStream());
   }
 
+  /**
+   * @param {{ [x: string]: any; }} obj
+   * @param {string | number} prop
+   * @param {any} args
+   */
   async ensure(obj, prop, args) {
     try {
       const value = obj[prop];
@@ -226,6 +299,10 @@ class NetworkPdfManager extends BasePdfManager {
     }
   }
 
+  /**
+   * @param {any} begin
+   * @param {any} end
+   */
   requestRange(begin, end) {
     return this.streamManager.requestRange(begin, end);
   }
@@ -234,13 +311,19 @@ class NetworkPdfManager extends BasePdfManager {
     return this.streamManager.requestAllChunks(noFetch);
   }
 
+  /**
+   * @param {any} chunk
+   */
   sendProgressiveData(chunk) {
     this.streamManager.onReceiveData({ chunk });
   }
 
+  /**
+   * @param {any} reason
+   */
   terminate(reason) {
     this.streamManager.abort(reason);
   }
 }
 
-export { LocalPdfManager, NetworkPdfManager };
+export { LocalPdfManager, NetworkPdfManager, BasePdfManager };

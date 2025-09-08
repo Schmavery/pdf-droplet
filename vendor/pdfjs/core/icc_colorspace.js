@@ -23,10 +23,10 @@ import {
   qcms_convert_three,
   qcms_drop_transformer,
   qcms_transformer_from_memory,
-} from "../../external/qcms/qcms.js";
+} from "../external/qcms/qcms.js";
 import { shadow, Util, warn } from "../shared/util.js";
 import { ColorSpace } from "./colorspace.js";
-import { QCMS } from "../../external/qcms/qcms_utils.js";
+import { QCMS } from "../external/qcms/qcms_utils.js";
 
 function fetchSync(url) {
   // Parsing and using color spaces is still synchronous,
@@ -46,6 +46,9 @@ class IccColorSpace extends ColorSpace {
 
   static #useWasm = true;
 
+  /**
+   * @type {string | undefined | null}
+   */
   static #wasmUrl = null;
 
   static #finalizer = null;
@@ -98,7 +101,7 @@ class IccColorSpace extends ColorSpace {
     if (!this.#transformer) {
       throw new Error("Failed to create ICC color space");
     }
-    IccColorSpace.#finalizer ||= new FinalizationRegistry(transformer => {
+    IccColorSpace.#finalizer ||= new FinalizationRegistry((transformer) => {
       qcms_drop_transformer(transformer);
     });
     IccColorSpace.#finalizer.register(this, this.#transformer);
@@ -138,12 +141,15 @@ class IccColorSpace extends ColorSpace {
     return ((inputLength / this.numComps) * (3 + alpha01)) | 0;
   }
 
+  /**
+   * @param {EvaluatorOptions & {handler: any}} options
+   */
   static setOptions({ useWasm, useWorkerFetch, wasmUrl }) {
     if (!useWorkerFetch) {
       this.#useWasm = false;
       return;
     }
-    this.#useWasm = useWasm;
+    this.#useWasm = !!useWasm;
     this.#wasmUrl = wasmUrl;
   }
 
@@ -171,6 +177,9 @@ class IccColorSpace extends ColorSpace {
 }
 
 class CmykICCBasedCS extends IccColorSpace {
+  /**
+   * @type {string | undefined}
+   */
   static #iccUrl;
 
   constructor() {
@@ -180,6 +189,9 @@ class CmykICCBasedCS extends IccColorSpace {
     super(iccProfile, "DeviceCMYK", 4);
   }
 
+  /**
+   * @param {EvaluatorOptions} options
+   */
   static setOptions({ iccUrl }) {
     this.#iccUrl = iccUrl;
   }

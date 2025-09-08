@@ -15,6 +15,7 @@
 
 import { assert, shadow, unreachable } from "../shared/util.js";
 
+/** @type {unique symbol} */
 const CIRCULAR_REF = Symbol("CIRCULAR_REF");
 const EOF = Symbol("EOF");
 
@@ -29,6 +30,9 @@ function clearPrimitiveCaches() {
 }
 
 class Name {
+  /**
+   * @param {string} name
+   */
   constructor(name) {
     if (
       (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) &&
@@ -39,13 +43,24 @@ class Name {
     this.name = name;
   }
 
+  /**
+   * @param {string} name
+   */
   static get(name) {
-    // eslint-disable-next-line no-restricted-syntax
     return (NameCache[name] ||= new Name(name));
+  }
+
+  toString() {
+    // This function is hot, so we make the string as compact as possible.
+    // |this.gen| is almost always zero, so we treat that case specially.
+    return this.name;
   }
 }
 
 class Cmd {
+  /**
+   * @param {any} cmd
+   */
   constructor(cmd) {
     if (
       (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) &&
@@ -56,8 +71,10 @@ class Cmd {
     this.cmd = cmd;
   }
 
+  /**
+   * @param {string} cmd
+   */
   static get(cmd) {
-    // eslint-disable-next-line no-restricted-syntax
     return (CmdCache[cmd] ||= new Cmd(cmd));
   }
 }
@@ -76,6 +93,9 @@ class Dict {
     this.__nonSerializable__ = nonSerializable; // Disable cloning of the Dict.
   }
 
+  /**
+   * @param {any} newXref
+   */
   assignXref(newXref) {
     this.xref = newXref;
   }
@@ -85,6 +105,11 @@ class Dict {
   }
 
   // Automatically dereferences Ref objects.
+  /**
+   * @param {string | any[]} key1
+   * @param {string | any[] | undefined} [key2]
+   * @param {string | any[] | undefined} [key3]
+   */
   get(key1, key2, key3) {
     let value = this._map.get(key1);
     if (value === undefined && key2 !== undefined) {
@@ -112,6 +137,11 @@ class Dict {
   }
 
   // Same as get(), but returns a promise and uses fetchIfRefAsync().
+  /**
+   * @param {string | any[]} key1
+   * @param {string | any[] | undefined} [key2]
+   * @param {string | any[] | undefined} [key3]
+   */
   async getAsync(key1, key2, key3) {
     let value = this._map.get(key1);
     if (value === undefined && key2 !== undefined) {
@@ -139,6 +169,11 @@ class Dict {
   }
 
   // Same as get(), but dereferences all elements if the result is an Array.
+  /**
+   * @param {string | any[]} key1
+   * @param {string | any[] | undefined} [key2]
+   * @param {string | any[] | undefined} [key3]
+   */
   getArray(key1, key2, key3) {
     let value = this._map.get(key1);
     if (value === undefined && key2 !== undefined) {
@@ -175,6 +210,9 @@ class Dict {
   }
 
   // No dereferencing.
+  /**
+   * @param {string} key
+   */
   getRaw(key) {
     return this._map.get(key);
   }
@@ -188,6 +226,10 @@ class Dict {
     return [...this._map.values()];
   }
 
+  /**
+   * @param {string} key
+   * @param {string | number | any[] | Name | Dict | Ref | ArrayBufferView<ArrayBufferLike> | import("./stream.js").StringStream | null | undefined} value
+   */
   set(key, value) {
     if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
       if (typeof key !== "string") {
@@ -199,30 +241,50 @@ class Dict {
     this._map.set(key, value);
   }
 
+  /**
+   * @param {any} key
+   * @param {any} value
+   */
   setIfNotExists(key, value) {
     if (!this.has(key)) {
       this.set(key, value);
     }
   }
 
+  /**
+   * @param {string} key
+   * @param {any} value
+   */
   setIfNumber(key, value) {
     if (typeof value === "number") {
       this.set(key, value);
     }
   }
 
+  /**
+   * @param {string} key
+   * @param {any} value
+   */
   setIfArray(key, value) {
     if (Array.isArray(value) || ArrayBuffer.isView(value)) {
       this.set(key, value);
     }
   }
 
+  /**
+   * @param {any} key
+   * @param {null | undefined} value
+   */
   setIfDefined(key, value) {
     if (value !== undefined && value !== null) {
       this.set(key, value);
     }
   }
 
+  /**
+   * @param {string} key
+   * @param {Object} value
+   */
   setIfName(key, value) {
     if (typeof value === "string") {
       this.set(key, Name.get(value));
@@ -231,6 +293,9 @@ class Dict {
     }
   }
 
+  /**
+   * @param {string} key
+   */
   has(key) {
     return this._map.has(key);
   }
@@ -308,12 +373,19 @@ class Dict {
     return dict;
   }
 
+  /**
+   * @param {string | number} key
+   */
   delete(key) {
     delete this._map[key];
   }
 }
 
 class Ref {
+  /**
+   * @param {number} num
+   * @param {number} gen
+   */
   constructor(num, gen) {
     this.num = num;
     this.gen = gen;
@@ -328,6 +400,9 @@ class Ref {
     return `${this.num}R${this.gen}`;
   }
 
+  /**
+   * @param {string} str
+   */
   static fromString(str) {
     const ref = RefCache[str];
     if (ref) {
@@ -338,16 +413,18 @@ class Ref {
       return null;
     }
 
-    // eslint-disable-next-line no-restricted-syntax
     return (RefCache[str] = new Ref(
       parseInt(m[1]),
       !m[2] ? 0 : parseInt(m[2])
     ));
   }
 
+  /**
+   * @param {number} num
+   * @param {number} gen
+   */
   static get(num, gen) {
     const key = gen === 0 ? `${num}R` : `${num}R${gen}`;
-    // eslint-disable-next-line no-restricted-syntax
     return (RefCache[key] ||= new Ref(num, gen));
   }
 }
@@ -366,14 +443,23 @@ class RefSet {
     this._set = new Set(parent?._set);
   }
 
+  /**
+   * @param {Ref} ref
+   */
   has(ref) {
     return this._set.has(ref.toString());
   }
 
+  /**
+   * @param {Ref} ref
+   */
   put(ref) {
     this._set.add(ref.toString());
   }
 
+  /**
+   * @param {Ref} ref
+   */
   remove(ref) {
     this._set.delete(ref.toString());
   }
@@ -396,18 +482,32 @@ class RefSetCache {
     return this._map.size;
   }
 
+  /**
+   * @param {Ref} ref
+   */
   get(ref) {
     return this._map.get(ref.toString());
   }
 
+  /**
+   * @param {Ref} ref
+   */
   has(ref) {
     return this._map.has(ref.toString());
   }
 
+  /**
+   * @param {Ref | null} ref
+   * @param {number | Dict} obj
+   */
   put(ref, obj) {
     this._map.set(ref.toString(), obj);
   }
 
+  /**
+   * @param {{ toString: () => any; }} ref
+   * @param {any} aliasRef
+   */
   putAlias(ref, aliasRef) {
     this._map.set(ref.toString(), this.get(aliasRef));
   }
@@ -431,20 +531,36 @@ class RefSetCache {
   }
 }
 
+/**
+ * @param {{ name: any; }} v
+ * @param {string | undefined} name
+ */
 function isName(v, name) {
   return v instanceof Name && (name === undefined || v.name === name);
 }
 
+/**
+ * @param {{ cmd: any; }} v
+ * @param {string | undefined} cmd
+ */
 function isCmd(v, cmd) {
   return v instanceof Cmd && (cmd === undefined || v.cmd === cmd);
 }
 
+/**
+ * @param {{ get?: any; }} v
+ * @param {string | undefined} type
+ */
 function isDict(v, type) {
   return (
     v instanceof Dict && (type === undefined || isName(v.get("Type"), type))
   );
 }
 
+/**
+ * @param {Ref} v1
+ * @param {{ num: any; gen: any; }} v2
+ */
 function isRefsEqual(v1, v2) {
   if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
     assert(

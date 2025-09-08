@@ -54,7 +54,7 @@ import { FileSpec } from "./file_spec.js";
 import { MetadataParser } from "./metadata_parser.js";
 import { StructTreeRoot } from "./struct_tree.js";
 
-const isRef = v => v instanceof Ref;
+const isRef = (/** @type {any} */ v) => v instanceof Ref;
 
 const isValidExplicitDest = _isValidExplicitDest.bind(
   null,
@@ -62,6 +62,9 @@ const isValidExplicitDest = _isValidExplicitDest.bind(
   /* validName = */ isName
 );
 
+/**
+ * @param {{ get: (arg0: string) => any; }} dest
+ */
 function fetchDest(dest) {
   if (dest instanceof Dict) {
     dest = dest.get("D");
@@ -69,6 +72,9 @@ function fetchDest(dest) {
   return isValidExplicitDest(dest) ? dest : null;
 }
 
+/**
+ * @param {Dict} action
+ */
 function fetchRemoteDest(action) {
   let dest = action.get("D");
   if (dest) {
@@ -87,6 +93,7 @@ function fetchRemoteDest(action) {
 class Catalog {
   #actualNumPages = null;
 
+  /** @type {Dict | null} */
   #catDict = null;
 
   builtInCMapCache = new Map();
@@ -109,6 +116,10 @@ class Catalog {
 
   systemFontCache = new Map();
 
+  /**
+   * @param {import("./pdf_manager.js").BasePdfManager} pdfManager
+   * @param {import("./xref.js").XRef} xref
+   */
   constructor(pdfManager, xref) {
     this.pdfManager = pdfManager;
     this.xref = xref;
@@ -119,15 +130,18 @@ class Catalog {
     }
     // Given that `XRef.parse` will both fetch *and* validate the /Pages-entry,
     // the following call must always succeed here:
-    this.toplevelPagesDict; // eslint-disable-line no-unused-expressions
+    this.toplevelPagesDict;
   }
 
   cloneDict() {
-    return this.#catDict.clone();
+    return this.#catDict?.clone();
   }
 
+  /**
+   * @returns {string | null}
+   */
   get version() {
-    const version = this.#catDict.get("Version");
+    const version = this.#catDict?.get("Version");
     if (version instanceof Name) {
       if (PDF_VERSION_REGEXP.test(version.name)) {
         return shadow(this, "version", version.name);
@@ -137,8 +151,11 @@ class Catalog {
     return shadow(this, "version", null);
   }
 
+  /**
+   * @returns {string | null}
+   */
   get lang() {
-    const lang = this.#catDict.get("Lang");
+    const lang = this.#catDict?.get("Lang");
     return shadow(
       this,
       "lang",
@@ -465,6 +482,9 @@ class Catalog {
     return shadow(this, "optionalContentConfig", config);
   }
 
+  /**
+   * @param {{ toString: () => any; }} groupRef
+   */
   #readOptionalContentGroup(groupRef) {
     const group = this.xref.fetch(groupRef);
     const obj = {
@@ -487,8 +507,8 @@ class Catalog {
     if (!Array.isArray(intent)) {
       intent = [intent];
     }
-    if (intent.every(i => i instanceof Name)) {
-      obj.intent = intent.map(i => i.name);
+    if (intent.every((/** @type {any} */ i) => i instanceof Name)) {
+      obj.intent = intent.map((/** @type {{ name: any; }} */ i) => i.name);
     }
 
     const usage = group.get("Usage");
@@ -524,7 +544,14 @@ class Catalog {
     return obj;
   }
 
+  /**
+   * @param {{ get: (arg0: string) => { (): any; new (): any; name: any; }; }} config
+   * @param {{ has: (arg0: Ref) => any; items: () => any; get: (arg0: Ref) => { (): any; new (): any; rbGroups: Set<any>[]; }; }} groupRefCache
+   */
   #readOptionalContentConfig(config, groupRefCache) {
+    /**
+     * @param {any} refs
+     */
     function parseOnOff(refs) {
       const onParsed = [];
       if (Array.isArray(refs)) {
@@ -537,6 +564,9 @@ class Catalog {
       return onParsed;
     }
 
+    /**
+     * @param {any[]} refs
+     */
     function parseOrder(refs, nestedLevels = 0) {
       if (!Array.isArray(refs)) {
         return null;
@@ -574,6 +604,10 @@ class Catalog {
       return order;
     }
 
+    /**
+     * @param {any} ref
+     * @param {number | undefined} nestedLevels
+     */
     function parseNestedOrder(ref, nestedLevels) {
       if (++nestedLevels > MAX_NESTED_LEVELS) {
         warn("parseNestedOrder - reached MAX_NESTED_LEVELS.");
@@ -594,6 +628,9 @@ class Catalog {
       return { name: stringToPDFString(nestedName), order: nestedOrder };
     }
 
+    /**
+     * @param {any} rbGroups
+     */
     function parseRBGroups(rbGroups) {
       if (!Array.isArray(rbGroups)) {
         return;
@@ -694,6 +731,9 @@ class Catalog {
     return shadow(this, "destinations", dests);
   }
 
+  /**
+   * @param {string | number} id
+   */
   getDestination(id) {
     // Avoid extra lookup/parsing when all destinations are already available.
     if (this.hasOwnProperty("destinations")) {
@@ -1077,6 +1117,10 @@ class Catalog {
     const obj = this.#catDict.get("Names");
     let javaScript = null;
 
+    /**
+     * @param {string} name
+     * @param {{ get: (arg0: string) => any; }} jsDict
+     */
     function appendIfJavaScriptDict(name, jsDict) {
       if (!(jsDict instanceof Dict)) {
         return;
@@ -1159,6 +1203,9 @@ class Catalog {
     this.systemFontCache.clear();
   }
 
+  /**
+   * @param {number} pageIndex
+   */
   async getPageDict(pageIndex) {
     const nodesToVisit = [this.toplevelPagesDict];
     const visitedNodes = new RefSet();
@@ -1292,7 +1339,7 @@ class Catalog {
 
   /**
    * Eagerly fetches the entire /Pages-tree; should ONLY be used as a fallback.
-   * @returns {Promise<Map>}
+   * @returns {Promise<Map<number, [Dict, Ref | null]>>} A map of page indices to their corresponding page dictionaries and references.
    */
   async getAllPageDicts(recoveryMode = false) {
     const { ignoreErrors } = this.pdfManager.evaluatorOptions;
@@ -1300,7 +1347,7 @@ class Catalog {
     const queue = [{ currentNode: this.toplevelPagesDict, posInKids: 0 }];
     const visitedNodes = new RefSet();
 
-    const pagesRef = this.#catDict.getRaw("Pages");
+    const pagesRef = this.#catDict?.getRaw("Pages");
     if (pagesRef instanceof Ref) {
       visitedNodes.put(pagesRef);
     }
@@ -1309,6 +1356,10 @@ class Catalog {
       pageIndexCache = this.pageIndexCache;
     let pageIndex = 0;
 
+    /**
+     * @param {Dict} pageDict
+     * @param {Ref | null} pageRef
+     */
     function addPageDict(pageDict, pageRef) {
       // Help improve performance of the `getPageIndex` method.
       if (pageRef && !pageIndexCache.has(pageRef)) {
@@ -1317,6 +1368,9 @@ class Catalog {
 
       map.set(pageIndex++, [pageDict, pageRef]);
     }
+    /**
+     * @param {unknown} error
+     */
     function addPageError(error) {
       if (error instanceof XRefEntryException && !recoveryMode) {
         throw error;
@@ -1332,6 +1386,9 @@ class Catalog {
 
     while (queue.length > 0) {
       const queueItem = queue.at(-1);
+      if (!queueItem) {
+        break;
+      }
       const { currentNode, posInKids } = queueItem;
 
       let kids = currentNode.getRaw("Kids");
@@ -1407,6 +1464,9 @@ class Catalog {
     return map;
   }
 
+  /**
+   * @param {any} pageRef
+   */
   getPageIndex(pageRef) {
     const cachedPageIndex = this.pageIndexCache.get(pageRef);
     if (cachedPageIndex !== undefined) {
@@ -1418,13 +1478,21 @@ class Catalog {
     // adding the count of siblings to the left of the node.
     const xref = this.xref;
 
+    /**
+     * @param {any} kidRef
+     */
     function pagesBeforeRef(kidRef) {
+      /**
+       * @type {any}
+       */
       let total = 0,
         parentRef;
 
       return xref
         .fetchAsync(kidRef)
-        .then(function (node) {
+        .then(function (
+          /** @type {{ has: (arg0: string) => any; getRaw: (arg0: string) => any; getAsync: (arg0: string) => any; }} */ node
+        ) {
           if (
             isRefsEqual(kidRef, pageRef) &&
             !isDict(node, "Page") &&
@@ -1443,7 +1511,9 @@ class Catalog {
           parentRef = node.getRaw("Parent");
           return node.getAsync("Parent");
         })
-        .then(function (parent) {
+        .then(function (
+          /** @type {{ getAsync: (arg0: string) => any; }} */ parent
+        ) {
           if (!parent) {
             return null;
           }
@@ -1452,7 +1522,7 @@ class Catalog {
           }
           return parent.getAsync("Kids");
         })
-        .then(function (kids) {
+        .then(function (/** @type {any} */ kids) {
           if (!kids) {
             return null;
           }
@@ -1468,17 +1538,21 @@ class Catalog {
               break;
             }
             kidPromises.push(
-              xref.fetchAsync(kid).then(function (obj) {
-                if (!(obj instanceof Dict)) {
-                  throw new FormatError("Kid node must be a dictionary.");
-                }
-                if (obj.has("Count")) {
-                  total += obj.get("Count");
-                } else {
-                  // Page leaf node.
-                  total++;
-                }
-              })
+              xref
+                .fetchAsync(kid)
+                .then(function (
+                  /** @type {{ has: (arg0: string) => any; get: (arg0: string) => number; }} */ obj
+                ) {
+                  if (!(obj instanceof Dict)) {
+                    throw new FormatError("Kid node must be a dictionary.");
+                  }
+                  if (obj.has("Count")) {
+                    total += obj.get("Count");
+                  } else {
+                    // Page leaf node.
+                    total++;
+                  }
+                })
             );
           }
           if (!found) {
@@ -1489,8 +1563,8 @@ class Catalog {
     }
 
     let total = 0;
-    const next = ref =>
-      pagesBeforeRef(ref).then(args => {
+    const next = (/** @type {any} */ ref) =>
+      pagesBeforeRef(ref).then((/** @type {[any, any]} */ args) => {
         if (!args) {
           this.pageIndexCache.put(pageRef, total);
           return total;

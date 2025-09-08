@@ -29,5 +29,5 @@
       "@pdfjs/*": ["vendor/pdfjs/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "vendor/pdfjs"]
 }
