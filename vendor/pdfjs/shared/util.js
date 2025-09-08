@@ -386,6 +386,11 @@ function warn(msg) {
   }
 }
 
+/**
+ *
+ * @param {string} msg
+ * @returns {never}
+ */
 function unreachable(msg) {
   throw new Error(msg);
 }
@@ -666,7 +671,7 @@ class FeatureTest {
   }
 }
 
-const hexNumbers = Array.from(Array(256).keys(), n =>
+const hexNumbers = Array.from(Array(256).keys(), (n) =>
   n.toString(16).padStart(2, "0")
 );
 
@@ -879,9 +884,15 @@ class Util {
     return r;
   }
 
-  // Returns a rectangle [x1, y1, x2, y2] corresponding to the
-  // intersection of rect1 and rect2. If no intersection, returns 'null'
-  // The rectangle coordinates of rect1, rect2 should be [x1, y1, x2, y2]
+  /**
+   * Returns a rectangle [x1, y1, x2, y2] corresponding to the
+   * intersection of rect1 and rect2. If no intersection, returns 'null'
+   * The rectangle coordinates of rect1, rect2 should be [x1, y1, x2, y2]
+   *
+   * @param {[x1: number, y1: number, x2: number, y2: number]} rect1
+   * @param {[x1: number, y1: number, x2: number, y2: number]} rect2
+   * @returns {[x1: number, y1: number, x2: number, y2: number] | null} The intersection rectangle or null if no intersection.
+   */
   static intersect(rect1, rect2) {
     const xLow = Math.max(
       Math.min(rect1[0], rect1[2]),
@@ -1216,7 +1227,7 @@ function toHexUtil(arr) {
   if (Uint8Array.prototype.toHex) {
     return arr.toHex();
   }
-  return Array.from(arr, num => hexNumbers[num]).join("");
+  return Array.from(arr, (num) => hexNumbers[num]).join("");
 }
 
 // TODO: Remove this once `Uint8Array.prototype.toBase64` is generally
@@ -1243,7 +1254,7 @@ if (
   typeof Promise.try !== "function"
 ) {
   Promise.try = function (fn, ...args) {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       resolve(fn(...args));
     });
   };

@@ -77,6 +77,7 @@ function App() {
         const manager = new LocalPdfManager({
           source: uint8Array,
           evaluatorOptions: { isOffscreenCanvasSupported: true },
+          docId: "sample-local-pdf",
         });
         manager.pdfDocument.checkHeader();
         manager.pdfDocument.parseStartXRef();
@@ -87,7 +88,6 @@ function App() {
 
   useEffect(() => {
     if (manager) {
-      console.log("PDF Manager initialized:", manager);
       const entries = Object.entries(manager.pdfDocument.xref.entries)
         .slice(1)
         .map(([key, value]) => {
@@ -141,7 +141,7 @@ function App() {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white m-2 ml-0">
-          <PdfView />
+          <PdfView objects={objects} manager={manager} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

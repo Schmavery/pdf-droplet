@@ -53,27 +53,27 @@ import {
   LoopbackPort,
 } from "./api_utils.js";
 import { MessageHandler, wrapReason } from "../shared/message_handler.js";
-import {
-  NodeCanvasFactory,
-  NodeCMapReaderFactory,
-  NodeFilterFactory,
-  NodeStandardFontDataFactory,
-  NodeWasmFactory,
-} from "display-node_utils";
+// import {
+//   NodeCanvasFactory,
+//   NodeCMapReaderFactory,
+//   NodeFilterFactory,
+//   NodeStandardFontDataFactory,
+//   NodeWasmFactory,
+// } from "display-node_utils";
 import { CanvasDependencyTracker } from "./canvas_dependency_tracker.js";
 import { CanvasGraphics } from "./canvas.js";
 import { DOMCanvasFactory } from "./canvas_factory.js";
-import { DOMCMapReaderFactory } from "display-cmap_reader_factory";
+// import { DOMCMapReaderFactory } from "display-cmap_reader_factory";
 import { DOMFilterFactory } from "./filter_factory.js";
-import { DOMStandardFontDataFactory } from "display-standard_fontdata_factory";
-import { DOMWasmFactory } from "display-wasm_factory";
+// import { DOMStandardFontDataFactory } from "display-standard_fontdata_factory";
+// import { DOMWasmFactory } from "display-wasm_factory";
 import { GlobalWorkerOptions } from "./worker_options.js";
 import { Metadata } from "./metadata.js";
 import { OptionalContentConfig } from "./optional_content_config.js";
 import { PDFDataTransportStream } from "./transport_stream.js";
-import { PDFFetchStream } from "display-fetch_stream";
-import { PDFNetworkStream } from "display-network";
-import { PDFNodeStream } from "display-node_stream";
+// import { PDFFetchStream } from "display-fetch_stream";
+// import { PDFNetworkStream } from "display-network";
+// import { PDFNodeStream } from "display-node_stream";
 import { PDFObjects } from "./pdf_objects.js";
 import { TextLayer } from "./text_layer.js";
 import { XfaText } from "./xfa_text.js";
@@ -306,11 +306,11 @@ function getDocument(src = {}) {
     typeof src.isImageDecoderSupported === "boolean"
       ? src.isImageDecoderSupported
       : // eslint-disable-next-line no-nested-ternary
-        typeof PDFJSDev !== "undefined" && PDFJSDev.test("MOZCENTRAL")
-        ? true
-        : typeof PDFJSDev !== "undefined" && PDFJSDev.test("CHROME")
-          ? false
-          : !isNodeJS && (FeatureTest.platform.isFirefox || !globalThis.chrome);
+      typeof PDFJSDev !== "undefined" && PDFJSDev.test("MOZCENTRAL")
+      ? true
+      : typeof PDFJSDev !== "undefined" && PDFJSDev.test("CHROME")
+      ? false
+      : !isNodeJS && (FeatureTest.platform.isFirefox || !globalThis.chrome);
   const canvasMaxAreaInBytes = Number.isInteger(src.canvasMaxAreaInBytes)
     ? src.canvasMaxAreaInBytes
     : -1;
@@ -337,7 +337,7 @@ function getDocument(src = {}) {
   const useWasm = src.useWasm !== false;
 
   // Parameters whose default values depend on other parameters.
-  const length = rangeTransport ? rangeTransport.length : (src.length ?? NaN);
+  const length = rangeTransport ? rangeTransport.length : src.length ?? NaN;
   const useSystemFonts =
     typeof src.useSystemFonts === "boolean"
       ? src.useSystemFonts
@@ -472,10 +472,10 @@ function getDocument(src = {}) {
         const NetworkStream = isValidFetchUrl(url)
           ? PDFFetchStream
           : typeof PDFJSDev !== "undefined" &&
-              PDFJSDev.test("GENERIC") &&
-              isNodeJS
-            ? PDFNodeStream
-            : PDFNetworkStream;
+            PDFJSDev.test("GENERIC") &&
+            isNodeJS
+          ? PDFNodeStream
+          : PDFNetworkStream;
 
         networkStream = new NetworkStream({
           url,
@@ -488,7 +488,7 @@ function getDocument(src = {}) {
         });
       }
 
-      return workerIdPromise.then(workerId => {
+      return workerIdPromise.then((workerId) => {
         if (task.destroyed) {
           throw new Error("Loading aborted");
         }
@@ -758,7 +758,7 @@ class PDFDocumentProxy {
         value: () => this._transport.getStartXRefPos(),
       });
       Object.defineProperty(this, "getAnnotArray", {
-        value: pageIndex => this._transport.getAnnotArray(pageIndex),
+        value: (pageIndex) => this._transport.getAnnotArray(pageIndex),
       });
     }
   }
@@ -1358,13 +1358,15 @@ class PDFPageProxy {
    * @returns {PageViewport} Contains 'width' and 'height' properties
    *   along with transforms required for rendering.
    */
-  getViewport({
-    scale,
-    rotation = this.rotate,
-    offsetX = 0,
-    offsetY = 0,
-    dontFlip = false,
-  } = {}) {
+  getViewport(
+    {
+      scale,
+      rotation = this.rotate,
+      offsetX = 0,
+      offsetY = 0,
+      dontFlip = false,
+    } = { scale: 0 }
+  ) {
     return new PageViewport({
       viewBox: this.view,
       userUnit: this.userUnit,
@@ -1492,7 +1494,7 @@ class PDFPageProxy {
       (recordOperations ||
         (this._pdfBug && globalThis.StepperManager?.enabled));
 
-    const complete = error => {
+    const complete = (error) => {
       intentState.renderTasks.delete(internalRenderTask);
 
       if (shouldRecordOperations) {
@@ -1689,7 +1691,7 @@ class PDFPageProxy {
     if (this._transport._htmlForXfa) {
       // TODO: We need to revisit this once the XFA foreground patch lands and
       // only do this for non-foreground XFA.
-      return this.getXfa().then(xfa => XfaText.textContent(xfa));
+      return this.getXfa().then((xfa) => XfaText.textContent(xfa));
     }
     const readableStream = this.streamTextContent(params);
 
@@ -1875,7 +1877,7 @@ class PDFPageProxy {
           this._renderPageChunk(value, intentState);
           pump();
         },
-        reason => {
+        (reason) => {
           intentState.streamReader = null;
 
           if (this._transport.destroyed) {
@@ -2031,7 +2033,7 @@ class PDFWorker {
         return base.origin === other.origin;
       };
 
-      this._createCDNWrapper = url => {
+      this._createCDNWrapper = (url) => {
         // We will rely on blob URL's property to specify origin.
         // We want this function to fail in case if createObjectURL or Blob do
         // not exist or fail for some reason -- our Worker creation will fail
@@ -2042,7 +2044,7 @@ class PDFWorker {
         );
       };
 
-      this.fromPort = params => {
+      this.fromPort = (params) => {
         deprecated(
           "`PDFWorker.fromPort` - please use `PDFWorker.create` instead."
         );
@@ -2188,7 +2190,7 @@ class PDFWorker {
         { signal: ac.signal }
       );
 
-      messageHandler.on("test", data => {
+      messageHandler.on("test", (data) => {
         ac.abort();
         if (this.destroyed || !data) {
           terminateEarly();
@@ -2201,7 +2203,7 @@ class PDFWorker {
         this.#resolve();
       });
 
-      messageHandler.on("ready", data => {
+      messageHandler.on("ready", (data) => {
         ac.abort();
         if (this.destroyed) {
           terminateEarly();
@@ -2241,7 +2243,7 @@ class PDFWorker {
     }
 
     PDFWorker._setupFakeWorkerGlobal
-      .then(WorkerMessageHandler => {
+      .then((WorkerMessageHandler) => {
         if (this.destroyed) {
           this.#capability.reject(new Error("Worker was destroyed"));
           return;
@@ -2260,7 +2262,7 @@ class PDFWorker {
         this.#messageHandler = new MessageHandler(id, id + "_worker", port);
         this.#resolve();
       })
-      .catch(reason => {
+      .catch((reason) => {
         this.#capability.reject(
           new Error(`Setting up fake worker failed: "${reason.message}".`)
         );
@@ -2322,21 +2324,21 @@ class PDFWorker {
   }
 
   // Loads worker code into the main-thread.
-  static get _setupFakeWorkerGlobal() {
-    const loader = async () => {
-      if (this.#mainThreadWorkerMessageHandler) {
-        // The worker was already loaded using e.g. a `<script>` tag.
-        return this.#mainThreadWorkerMessageHandler;
-      }
-      const worker =
-        typeof PDFJSDev === "undefined"
-          ? await import("pdfjs/pdf.worker.js")
-          : await __raw_import__(this.workerSrc);
-      return worker.WorkerMessageHandler;
-    };
+  // static get _setupFakeWorkerGlobal() {
+  //   const loader = async () => {
+  //     if (this.#mainThreadWorkerMessageHandler) {
+  //       // The worker was already loaded using e.g. a `<script>` tag.
+  //       return this.#mainThreadWorkerMessageHandler;
+  //     }
+  //     const worker =
+  //       typeof PDFJSDev === "undefined"
+  //         ? await import("pdfjs/pdf.worker.js")
+  //         : await __raw_import__(this.workerSrc);
+  //     return worker.WorkerMessageHandler;
+  //   };
 
-    return shadow(this, "_setupFakeWorkerGlobal", loader());
-  }
+  //   return shadow(this, "_setupFakeWorkerGlobal", loader());
+  // }
 }
 
 /**
@@ -2407,7 +2409,7 @@ class WorkerTransport {
           this.messageHandler.sendWithPromise("GetStartXRefPos", null),
       });
       Object.defineProperty(this, "getAnnotArray", {
-        value: pageIndex =>
+        value: (pageIndex) =>
           this.messageHandler.sendWithPromise("GetAnnotArray", { pageIndex }),
       });
     }
@@ -2556,7 +2558,7 @@ class WorkerTransport {
         "GetReader - no `IPDFStream` instance available."
       );
       this._fullReader = this._networkStream.getFullReader();
-      this._fullReader.onProgress = evt => {
+      this._fullReader.onProgress = (evt) => {
         this._lastProgress = {
           loaded: evt.loaded,
           total: evt.total,
@@ -2578,15 +2580,15 @@ class WorkerTransport {
             // to other side as `Transferable` object.
             sink.enqueue(new Uint8Array(value), 1, [value]);
           })
-          .catch(reason => {
+          .catch((reason) => {
             sink.error(reason);
           });
       };
 
-      sink.onCancel = reason => {
+      sink.onCancel = (reason) => {
         this._fullReader.cancel(reason);
 
-        sink.ready.catch(readyReason => {
+        sink.ready.catch((readyReason) => {
           if (this.destroyed) {
             return; // Ignore any pending requests if the worker was terminated.
           }
@@ -2595,7 +2597,7 @@ class WorkerTransport {
       };
     });
 
-    messageHandler.on("ReaderHeadersReady", async data => {
+    messageHandler.on("ReaderHeadersReady", async (data) => {
       await this._fullReader.headersReady;
 
       const { isStreamingSupported, isRangeSupported, contentLength } =
@@ -2607,7 +2609,7 @@ class WorkerTransport {
         if (this._lastProgress) {
           loadingTask.onProgress?.(this._lastProgress);
         }
-        this._fullReader.onProgress = evt => {
+        this._fullReader.onProgress = (evt) => {
           loadingTask.onProgress?.({
             loaded: evt.loaded,
             total: evt.total,
@@ -2657,15 +2659,15 @@ class WorkerTransport {
             );
             sink.enqueue(new Uint8Array(value), 1, [value]);
           })
-          .catch(reason => {
+          .catch((reason) => {
             sink.error(reason);
           });
       };
 
-      sink.onCancel = reason => {
+      sink.onCancel = (reason) => {
         rangeReader.cancel(reason);
 
-        sink.ready.catch(readyReason => {
+        sink.ready.catch((readyReason) => {
           if (this.destroyed) {
             return; // Ignore any pending requests if the worker was terminated.
           }
@@ -2681,11 +2683,11 @@ class WorkerTransport {
       loadingTask._capability.resolve(new PDFDocumentProxy(pdfInfo, this));
     });
 
-    messageHandler.on("DocException", ex => {
+    messageHandler.on("DocException", (ex) => {
       loadingTask._capability.reject(wrapReason(ex));
     });
 
-    messageHandler.on("PasswordRequest", ex => {
+    messageHandler.on("PasswordRequest", (ex) => {
       this.#passwordCapability = Promise.withResolvers();
 
       try {
@@ -2693,7 +2695,7 @@ class WorkerTransport {
           throw wrapReason(ex);
         }
 
-        const updatePassword = password => {
+        const updatePassword = (password) => {
           if (password instanceof Error) {
             this.#passwordCapability.reject(password);
           } else {
@@ -2707,7 +2709,7 @@ class WorkerTransport {
       return this.#passwordCapability.promise;
     });
 
-    messageHandler.on("DataLoaded", data => {
+    messageHandler.on("DataLoaded", (data) => {
       // For consistency: Ensure that progress is always reported when the
       // entire PDF file has been loaded, regardless of how it was fetched.
       loadingTask.onProgress?.({
@@ -2718,7 +2720,7 @@ class WorkerTransport {
       this.downloadInfoCapability.resolve(data);
     });
 
-    messageHandler.on("StartRenderPage", data => {
+    messageHandler.on("StartRenderPage", (data) => {
       if (this.destroyed) {
         return; // Ignore any pending requests if the worker was terminated.
       }
@@ -2821,7 +2823,7 @@ class WorkerTransport {
       }
     });
 
-    messageHandler.on("DocProgress", data => {
+    messageHandler.on("DocProgress", (data) => {
       if (this.destroyed) {
         return; // Ignore any pending requests if the worker was terminated.
       }
@@ -2831,7 +2833,7 @@ class WorkerTransport {
       });
     });
 
-    messageHandler.on("FetchBinaryData", async data => {
+    messageHandler.on("FetchBinaryData", async (data) => {
       if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("MOZCENTRAL")) {
         throw new Error("Not implemented: FetchBinaryData");
       }
@@ -2896,7 +2898,7 @@ class WorkerTransport {
       .sendWithPromise("GetPage", {
         pageIndex,
       })
-      .then(pageInfo => {
+      .then((pageInfo) => {
         if (this.destroyed) {
           throw new Error("Transport destroyed");
         }
@@ -3012,7 +3014,7 @@ class WorkerTransport {
 
   getOptionalContentConfig(renderingIntent) {
     return this.#cacheSimpleMethod("GetOptionalContentConfig").then(
-      data => new OptionalContentConfig(data, renderingIntent)
+      (data) => new OptionalContentConfig(data, renderingIntent)
     );
   }
 
@@ -3028,7 +3030,7 @@ class WorkerTransport {
     }
     const promise = this.messageHandler
       .sendWithPromise(name, null)
-      .then(results => ({
+      .then((results) => ({
         info: results[0],
         metadata: results[1] ? new Metadata(results[1]) : null,
         contentDispositionFilename: this._fullReader?.filename ?? null,
@@ -3150,7 +3152,7 @@ class RenderTask {
  * For internal use only.
  * @ignore
  */
-class InternalRenderTask {
+export class InternalRenderTask {
   #rAF = null;
 
   static #canvasInUse = new WeakSet();

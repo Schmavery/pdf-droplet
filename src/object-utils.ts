@@ -4,7 +4,6 @@ import { Dict, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 
 export function getObjectType(val: PDFVal): string {
-  console.log("Determining type for value:", val);
   switch (true) {
     case val === null:
       return "null";

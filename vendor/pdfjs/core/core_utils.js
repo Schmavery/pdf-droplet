@@ -143,11 +143,12 @@ async function fetchBinaryData(url) {
  * the value for the key is returned or, if `stopWhenFound` is `false`, a list
  * of values is returned.
  *
- * @param {Dict} dict - Dictionary from where to start the traversal.
- * @param {string} key - The key of the property to find the value for.
- * @param {boolean} getArray - Whether or not the value should be fetched as an
+ * @param {Object} params - The parameters to the function.
+ * @param {Dict} params.dict - Dictionary from where to start the traversal.
+ * @param {string} params.key - The key of the property to find the value for.
+ * @param {boolean} params.getArray - Whether or not the value should be fetched as an
  *   array. The default value is `false`.
- * @param {boolean} stopWhenFound - Whether or not to stop the traversal when
+ * @param {boolean} params.stopWhenFound - Whether or not to stop the traversal when
  *   the key is found. If set to `false`, we always walk up the entire parent
  *   chain, for example to be able to find `\Resources` placed on multiple
  *   levels of the tree. The default value is `true`.
@@ -280,7 +281,7 @@ function isBooleanArray(arr, len) {
   return (
     Array.isArray(arr) &&
     (len === null || arr.length === len) &&
-    arr.every(x => typeof x === "boolean")
+    arr.every((x) => typeof x === "boolean")
   );
 }
 
@@ -295,7 +296,7 @@ function isNumberArray(arr, len) {
   if (Array.isArray(arr)) {
     return (
       (len === null || arr.length === len) &&
-      arr.every(x => typeof x === "number")
+      arr.every((x) => typeof x === "number")
     );
   }
 
@@ -313,12 +314,22 @@ function lookupMatrix(arr, fallback) {
   return isNumberArray(arr, 6) ? arr : fallback;
 }
 
-// Returns the rectangle, or the fallback value if it's invalid.
+/**
+ * Returns the rectangle, or the fallback value if it's invalid.
+ * @param {Array<number>} arr
+ * @param {[number, number, number, number]} fallback
+ * @returns {[number, number, number, number]}
+ */
 function lookupRect(arr, fallback) {
   return isNumberArray(arr, 4) ? arr : fallback;
 }
 
-// Returns the normalized rectangle, or the fallback value if it's invalid.
+/**
+ * Returns the normalized rectangle, or the fallback value if it's invalid.
+ * @param {Array<number>} arr
+ * @param {[number, number, number, number] | null} fallback
+ * @returns {[number, number, number, number] | null}
+ */
 function lookupNormalRect(arr, fallback) {
   return isNumberArray(arr, 4) ? Util.normalizeRect(arr) : fallback;
 }
@@ -334,7 +345,7 @@ function lookupNormalRect(arr, fallback) {
  */
 function parseXFAPath(path) {
   const positionPattern = /(.+)\[(\d+)\]$/;
-  return path.split(".").map(component => {
+  return path.split(".").map((component) => {
     const m = component.match(positionPattern);
     if (m) {
       return { name: m[1], pos: parseInt(m[2], 10) };
@@ -386,7 +397,7 @@ function escapePDFName(str) {
 // Replace "(", ")", "\n", "\r" and "\" by "\(", "\)", "\\n", "\\r" and "\\"
 // in order to write it in a PDF file.
 function escapeString(str) {
-  return str.replaceAll(/([()\\\n\r])/g, match => {
+  return str.replaceAll(/([()\\\n\r])/g, (match) => {
     if (match === "\n") {
       return "\\n";
     } else if (match === "\r") {

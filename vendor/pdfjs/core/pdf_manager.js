@@ -63,7 +63,7 @@ class BasePdfManager {
    * @param {*} [args.source]
    * @param {*} [args.disableAutoFetch]
    * @param {*} [args.docBaseUrl]
-   * @param {*} [args.docId]
+   * @param {*} args.docId
    * @param {*} [args.enableXfa]
    * @param {EvaluatorOptions} args.evaluatorOptions
    * @param {*} args.handler

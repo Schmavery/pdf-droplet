@@ -206,7 +206,6 @@ export default function ObjectDetail(props: {
   onBreadcrumbNavigate: (index: number) => void;
   onRefClick: (ref: Ref) => void;
 }) {
-  console.log(props.breadcrumb);
   const val = props.object?.val;
   return (
     <div className="p-2 border-l border-gray-200 h-full overflow-auto">

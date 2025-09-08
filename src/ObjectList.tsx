@@ -4,7 +4,6 @@ import { getObjectType } from "@/object-utils";
 import { Ref } from "@pdfjs/core/primitives";
 
 function ListItem(props: { entry: ObjectEntry; onClick?: () => void }) {
-  console.log("Rendering ListItem for entry:", props.entry);
   return (
     <li>
       <button

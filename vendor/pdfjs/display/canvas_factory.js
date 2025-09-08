@@ -15,6 +15,9 @@
 
 import { unreachable } from "../shared/util.js";
 
+/**
+ * @template {OffscreenCanvas | HTMLCanvasElement} CanvasType
+ */
 class BaseCanvasFactory {
   #enableHWA = false;
 
@@ -28,6 +31,11 @@ class BaseCanvasFactory {
     this.#enableHWA = enableHWA;
   }
 
+  /**
+   * @param {number} width
+   * @param {number} height
+   * @returns {{ canvas: CanvasType; context: ReturnType<CanvasType["getContext"]> | null; }}
+   */
   create(width, height) {
     if (width <= 0 || height <= 0) {
       throw new Error("Invalid canvas size");
@@ -41,6 +49,11 @@ class BaseCanvasFactory {
     };
   }
 
+  /**
+   * @param {{ canvas: { width: any; height: any; }; }} canvasAndContext
+   * @param {number} width
+   * @param {number} height
+   */
   reset(canvasAndContext, width, height) {
     if (!canvasAndContext.canvas) {
       throw new Error("Canvas is not specified");
@@ -52,6 +65,9 @@ class BaseCanvasFactory {
     canvasAndContext.canvas.height = height;
   }
 
+  /**
+   * @param {{ canvas: { width: number; height: number; } | null; context: null; }} canvasAndContext
+   */
   destroy(canvasAndContext) {
     if (!canvasAndContext.canvas) {
       throw new Error("Canvas is not specified");
@@ -65,13 +81,18 @@ class BaseCanvasFactory {
   }
 
   /**
-   * @ignore
+   * @param {any} _width
+   * @param {any} _height
+   * @returns {CanvasType}
    */
-  _createCanvas(width, height) {
+  _createCanvas(_width, _height) {
     unreachable("Abstract method `_createCanvas` called.");
   }
 }
 
+/**
+ * @extends {BaseCanvasFactory<HTMLCanvasElement>}
+ */
 class DOMCanvasFactory extends BaseCanvasFactory {
   constructor({ ownerDocument = globalThis.document, enableHWA = false }) {
     super({ enableHWA });
@@ -80,6 +101,9 @@ class DOMCanvasFactory extends BaseCanvasFactory {
 
   /**
    * @ignore
+   * @param {number} width
+   * @param {number} height
+   * @returns {HTMLCanvasElement}
    */
   _createCanvas(width, height) {
     const canvas = this._document.createElement("canvas");

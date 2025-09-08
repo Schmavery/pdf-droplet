@@ -22,6 +22,13 @@ import {
   warn,
 } from "../shared/util.js";
 
+/**
+ * @param {any[]} parentState
+ * @param {any[]} pattern
+ * @param {{ (context: any): boolean; (context: any): boolean; } | null} checkFn
+ * @param {{ (context: any, i: any): boolean; (context: any, i: any): boolean; (context: any, i: any): boolean; (context: any, i: any): boolean; (): boolean; }} iterateFn
+ * @param {{ (context: any, i: any): number; (context: any, i: any): number; (context: any, i: any): number; (context: any, i: any): number; (context: any, i: any): number; }} processFn
+ */
 function addState(parentState, pattern, checkFn, iterateFn, processFn) {
   let state = parentState;
   for (let i = 0, ii = pattern.length - 1; i < ii; i++) {
@@ -35,6 +42,9 @@ function addState(parentState, pattern, checkFn, iterateFn, processFn) {
   };
 }
 
+/**
+ * @type {never[]}
+ */
 const InitialState = [];
 
 // This replaces (save, transform, paintInlineImageXObject, restore)+
@@ -43,7 +53,10 @@ addState(
   InitialState,
   [OPS.save, OPS.transform, OPS.paintInlineImageXObject, OPS.restore],
   null,
-  function iterateInlineImageGroup(context, i) {
+  function iterateInlineImageGroup(
+    /** @type {{ fnArray: any; iCurr: number; }} */ context,
+    /** @type {number} */ i
+  ) {
     const fnArray = context.fnArray;
     const iFirstSave = context.iCurr - 3;
     const pos = (i - iFirstSave) % 4;
@@ -59,7 +72,10 @@ addState(
     }
     throw new Error(`iterateInlineImageGroup - invalid pos: ${pos}`);
   },
-  function foundInlineImageGroup(context, i) {
+  function foundInlineImageGroup(
+    /** @type {{ fnArray: any; argsArray: any; iCurr: any; isOffscreenCanvasSupported: any; }} */ context,
+    /** @type {number} */ i
+  ) {
     const MIN_IMAGES_IN_INLINE_IMAGES_BLOCK = 10;
     const MAX_IMAGES_IN_INLINE_IMAGES_BLOCK = 200;
     const MAX_WIDTH = 1000;
@@ -175,7 +191,10 @@ addState(
   InitialState,
   [OPS.save, OPS.transform, OPS.paintImageMaskXObject, OPS.restore],
   null,
-  function iterateImageMaskGroup(context, i) {
+  function iterateImageMaskGroup(
+    /** @type {{ fnArray: any; iCurr: number; }} */ context,
+    /** @type {number} */ i
+  ) {
     const fnArray = context.fnArray;
     const iFirstSave = context.iCurr - 3;
     const pos = (i - iFirstSave) % 4;
@@ -191,7 +210,10 @@ addState(
     }
     throw new Error(`iterateImageMaskGroup - invalid pos: ${pos}`);
   },
-  function foundImageMaskGroup(context, i) {
+  function foundImageMaskGroup(
+    /** @type {{ fnArray: any; argsArray: any; iCurr: any; }} */ context,
+    /** @type {number} */ i
+  ) {
     const MIN_IMAGES_IN_MASKS_BLOCK = 10;
     const MAX_IMAGES_IN_MASKS_BLOCK = 100;
     const MAX_SAME_IMAGES_IN_MASKS_BLOCK = 1000;
@@ -292,14 +314,17 @@ addState(
 addState(
   InitialState,
   [OPS.save, OPS.transform, OPS.paintImageXObject, OPS.restore],
-  function (context) {
+  function (/** @type {{ argsArray: any; iCurr: number; }} */ context) {
     const argsArray = context.argsArray;
     const iFirstTransform = context.iCurr - 2;
     return (
       argsArray[iFirstTransform][1] === 0 && argsArray[iFirstTransform][2] === 0
     );
   },
-  function iterateImageGroup(context, i) {
+  function iterateImageGroup(
+    /** @type {{ fnArray: any; argsArray: any; iCurr: number; }} */ context,
+    /** @type {number} */ i
+  ) {
     const fnArray = context.fnArray,
       argsArray = context.argsArray;
     const iFirstSave = context.iCurr - 3;
@@ -338,7 +363,10 @@ addState(
     }
     throw new Error(`iterateImageGroup - invalid pos: ${pos}`);
   },
-  function (context, i) {
+  function (
+    /** @type {{ fnArray: any; argsArray: any; iCurr: any; }} */ context,
+    /** @type {number} */ i
+  ) {
     const MIN_IMAGES_IN_BLOCK = 3;
     const MAX_IMAGES_IN_BLOCK = 1000;
 
@@ -392,7 +420,10 @@ addState(
   InitialState,
   [OPS.beginText, OPS.setFont, OPS.setTextMatrix, OPS.showText, OPS.endText],
   null,
-  function iterateShowTextGroup(context, i) {
+  function iterateShowTextGroup(
+    /** @type {{ fnArray: any; argsArray: any; iCurr: number; }} */ context,
+    /** @type {number} */ i
+  ) {
     const fnArray = context.fnArray,
       argsArray = context.argsArray;
     const iFirstSave = context.iCurr - 4;
@@ -423,7 +454,10 @@ addState(
     }
     throw new Error(`iterateShowTextGroup - invalid pos: ${pos}`);
   },
-  function (context, i) {
+  function (
+    /** @type {{ fnArray: any; argsArray: any; iCurr: any; }} */ context,
+    /** @type {number} */ i
+  ) {
     const MIN_CHARS_IN_BLOCK = 3;
     const MAX_CHARS_IN_BLOCK = 1000;
 
@@ -482,7 +516,7 @@ addState(
 addState(
   InitialState,
   [OPS.save, OPS.transform, OPS.constructPath, OPS.restore],
-  (context) => {
+  (/** @type {{ argsArray: any; iCurr: number; }} */ context) => {
     const argsArray = context.argsArray;
     const iFirstConstructPath = context.iCurr - 1;
     const op = argsArray[iFirstConstructPath][0];
@@ -509,7 +543,10 @@ addState(
     );
   },
   () => false,
-  (context, i) => {
+  (
+    /** @type {{ iCurr?: any; fnArray?: any; argsArray?: any; }} */ context,
+    /** @type {any} */ i
+  ) => {
     const { fnArray, argsArray } = context;
     const curr = context.iCurr;
     const iFirstSave = curr - 3;
@@ -544,12 +581,19 @@ addState(
 );
 
 class NullOptimizer {
+  /**
+   * @param {this} queue
+   */
   constructor(queue) {
     this.queue = queue;
   }
 
   _optimize() {}
 
+  /**
+   * @param {any} fn
+   * @param {any} args
+   */
   push(fn, args) {
     this.queue.fnArray.push(fn);
     this.queue.argsArray.push(args);
@@ -562,6 +606,9 @@ class NullOptimizer {
 }
 
 class QueueOptimizer extends NullOptimizer {
+  /**
+   * @param {this} queue
+   */
   constructor(queue) {
     super(queue);
     this.state = null;
@@ -655,9 +702,21 @@ class OperatorList {
 
   static isOffscreenCanvasSupported = false;
 
+  /**
+   * @param {{
+   *   ready: boolean | Promise<any>,
+   *   enqueue: (chunk: any, size: number, transfers?: any) => void
+   * }} [streamSink] - Sink for operator list streaming.
+   */
   constructor(intent = 0, streamSink) {
     this._streamSink = streamSink;
+    /**
+     * @type {string | any[]}
+     */
     this.fnArray = [];
+    /**
+     * @type {string | any[]}
+     */
     this.argsArray = [];
     this.optimizer =
       streamSink && !(intent & RenderingIntentFlag.OPLIST)
@@ -693,6 +752,10 @@ class OperatorList {
     return this._totalLength + this.length;
   }
 
+  /**
+   * @param {number} fn
+   * @param {any[] | undefined} [args]
+   */
   addOp(fn, args) {
     this.optimizer.push(fn, args);
     this.weight++;
@@ -709,6 +772,11 @@ class OperatorList {
     }
   }
 
+  /**
+   * @param {any} fn
+   * @param {any} args
+   * @param {undefined} optionalContent
+   */
   addImageOps(fn, args, optionalContent, hasMask = false) {
     if (hasMask) {
       this.addOp(OPS.save);
@@ -728,6 +796,9 @@ class OperatorList {
     }
   }
 
+  /**
+   * @param {any} dependency
+   */
   addDependency(dependency) {
     if (this.dependencies.has(dependency)) {
       return;
@@ -736,12 +807,18 @@ class OperatorList {
     this.addOp(OPS.dependency, [dependency]);
   }
 
+  /**
+   * @param {any} dependencies
+   */
   addDependencies(dependencies) {
     for (const dependency of dependencies) {
       this.addDependency(dependency);
     }
   }
 
+  /**
+   * @param {{ dependencies: any; length: any; fnArray: any[]; argsArray: any[]; }} opList
+   */
   addOpList(opList) {
     if (!(opList instanceof OperatorList)) {
       warn('addOpList - ignoring invalid "opList" parameter.');

@@ -131,9 +131,13 @@ class Page {
   }
 
   /**
-   * @param {any} handler
+   * @param {{
+   *   send: (messagetype: string, args: [string, string, object]) => void,
+   *   [key: string]: any
+   * }} handler - Message handler for worker communication, must implement send(type, data)
+   * @returns {PartialEvaluator}
    */
-  #createPartialEvaluator(handler) {
+  createPartialEvaluator(handler) {
     return new PartialEvaluator({
       xref: this.xref,
       handler,
@@ -150,7 +154,7 @@ class Page {
   }
 
   /**
-   * @param {any} key
+   * @param {string} key
    */
   #getInheritableProperty(key, getArray = false) {
     const value = getInheritableProperty({
@@ -187,6 +191,7 @@ class Page {
 
   /**
    * @param {any} name
+   * @returns {[number, number, number, number] | null}
    */
   #getBoundingBox(name) {
     if (this.xfaData) {
@@ -233,6 +238,9 @@ class Page {
     );
   }
 
+  /**
+   * @returns {[x1: number, y1: number, x2: number, y2: number]}
+   */
   get view() {
     // From the spec, 6th ed., p.963:
     // "The crop, bleed, trim, and art boxes should not ordinarily
@@ -368,7 +376,7 @@ class Page {
     if (this.xfaFactory) {
       throw new Error("XFA: Cannot save new annotations.");
     }
-    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const partialEvaluator = this.createPartialEvaluator(handler);
 
     const deletedAnnotations = new RefSetCache();
     const existingAnnotations = new RefSet();
@@ -417,7 +425,7 @@ class Page {
    * @param {any} changes
    */
   async save(handler, task, annotationStorage, changes) {
-    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const partialEvaluator = this.createPartialEvaluator(handler);
 
     // Fetch the page's annotations and save the content
     // in case of interactive form fields.
@@ -457,7 +465,7 @@ class Page {
    * @param {{ get: (arg0: string) => any; }} streamDict
    * @param {any} keys
    */
-  async #getMergedResources(streamDict, keys) {
+  async getMergedResources(streamDict, keys) {
     // In rare cases /Resources are also found in the /Contents stream-dict,
     // in addition to in the /Page dict, hence we need to prefer those when
     // available (see issue18894.pdf).
@@ -475,6 +483,20 @@ class Page {
     });
   }
 
+  /**
+   * @param {Object} params
+   * @param {{
+   *   send: (type: string, data: any) => void,
+   *   [key: string]: any
+   * }} params.handler - Message handler for worker communication
+   * @param {any} params.sink - Operator list sink.
+   * @param {any} params.task - Rendering task.
+   * @param {number} params.intent - Rendering intent flag.
+   * @param {string} params.cacheKey - Cache key for operator list.
+   * @param {any} [params.annotationStorage=null] - Annotation storage.
+   * @param {any} [params.modifiedIds=null] - Modified annotation IDs.
+   * @returns {Promise<{ length: number }>} Resolves with the operator list length.
+   */
   async getOperatorList({
     handler,
     sink,
@@ -487,7 +509,7 @@ class Page {
     const contentStreamPromise = this.getContentStream();
     const resourcesPromise = this.loadResources(RESOURCES_KEYS_OPERATOR_LIST);
 
-    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const partialEvaluator = this.createPartialEvaluator(handler);
 
     const newAnnotsByPage = !this.xfaFactory
       ? getNewAnnotationsMap(annotationStorage)
@@ -561,7 +583,7 @@ class Page {
       contentStreamPromise,
       resourcesPromise,
     ]).then(async ([contentStream]) => {
-      const resources = await this.#getMergedResources(
+      const resources = await this.getMergedResources(
         contentStream.dict,
         RESOURCES_KEYS_OPERATOR_LIST
       );
@@ -587,7 +609,6 @@ class Page {
 
     // Fetch the page's annotations and add their operator lists to the
     // page's operator list to render them.
-    // eslint-disable-next-line prefer-const
     let [pageOpList, annotations, newAnnotations] = await Promise.all([
       pageListPromise,
       this._parsedAnnotations,
@@ -693,12 +714,12 @@ class Page {
       resourcesPromise,
       langPromise,
     ]);
-    const resources = await this.#getMergedResources(
+    const resources = await this.getMergedResources(
       contentStream.dict,
       RESOURCES_KEYS_TEXT_CONTENT
     );
 
-    const partialEvaluator = this.#createPartialEvaluator(handler);
+    const partialEvaluator = this.createPartialEvaluator(handler);
 
     return partialEvaluator.getTextContent({
       stream: contentStream,
@@ -777,7 +798,7 @@ class Page {
       }
 
       if (annotation.hasTextContent && isVisible) {
-        partialEvaluator ??= this.#createPartialEvaluator(handler);
+        partialEvaluator ??= this.createPartialEvaluator(handler);
 
         textContentPromises.push(
           annotation
@@ -949,7 +970,7 @@ class Page {
             }
             annotation.data.pageIndex = pageIndex;
             if (annotation.hasTextContent && annotation.viewable) {
-              const partialEvaluator = this.#createPartialEvaluator(handler);
+              const partialEvaluator = this.createPartialEvaluator(handler);
               await annotation.extractTextContent(partialEvaluator, task, [
                 -Infinity,
                 -Infinity,
@@ -1820,6 +1841,7 @@ class PDFDocument {
 
   /**
    * @param {number} pageIndex
+   * @returns {Promise<Page>} A promise that resolves with the `Page` object for the given `pageIndex`.
    */
   getPage(pageIndex) {
     const cachedPromise = this.#pagePromises.get(pageIndex);
