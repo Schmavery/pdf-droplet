@@ -3,6 +3,18 @@ import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 
+const NUMBER_CHARS = [..."❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴"];
+
+function prefix(entry: ObjectEntry): string {
+  if (entry.pageIndex == undefined) {
+    return "";
+  }
+  if (entry.pageIndex >= 20) {
+    return `${entry.pageIndex} `;
+  }
+  return NUMBER_CHARS[entry.pageIndex] + " ";
+}
+
 function suffix(entry: ObjectEntry): string {
   if (entry.nameHint) {
     return ` (${entry.nameHint})`;
@@ -12,9 +24,7 @@ function suffix(entry: ObjectEntry): string {
     (backlink) => backlink.hint !== undefined
   );
   if (!firstWithHint) return "";
-  return ` (${firstWithHint?.hint}${
-    entry.pageIndex !== undefined ? ` p${entry.pageIndex + 1}` : ""
-  })`;
+  return ` (${firstWithHint?.hint})`;
 }
 
 function objectSizeBytes(val: PDFVal): number {
@@ -61,32 +71,29 @@ export function getObjectSizeString(val: ObjectEntry): string {
 export function getObjectType(val: ObjectEntry): string {
   switch (true) {
     case val.val === null:
-      return `null${suffix(val)}`;
+      return `${prefix(val)}null${suffix(val)}`;
     case typeof val.val === "number":
-      return `Number${suffix(val)}`;
+      return `${prefix(val)}Number${suffix(val)}`;
     case typeof val.val === "string":
-      return `String${suffix(val)}`;
+      return `${prefix(val)}String${suffix(val)}`;
     case val.val instanceof Array:
-      return `Array${suffix(val)}`;
+      return `${prefix(val)}Array${suffix(val)}`;
     case val.val instanceof Ref:
-      return `Ref${suffix(val)}`;
+      return `${prefix(val)}Ref${suffix(val)}`;
     case val.val instanceof Dict: {
       const name = val.val.get("Type");
-      if (name?.name === "Page" && val.pageIndex !== undefined) {
-        return `Page ${val.pageIndex + 1}`;
-      }
       if (name) {
-        return `${name}`;
+        return `${prefix(val)}${name}`;
       }
-      return `Dict` + `${suffix(val)}`;
+      return `${prefix(val)}Dict` + `${suffix(val)}`;
     }
     case val.val instanceof Stream: {
-      return `Stream${suffix(val)}`;
+      return `${prefix(val)}Stream${suffix(val)}`;
     }
     case val.val instanceof FlateStream: {
-      return `FlateStream${suffix(val)}`;
+      return `${prefix(val)}FlateStream${suffix(val)}`;
     }
     default:
-      return `unknown${suffix(val)}`;
+      return `${prefix(val)}unknown${suffix(val)}`;
   }
 }

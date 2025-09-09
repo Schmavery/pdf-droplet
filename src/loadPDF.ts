@@ -91,13 +91,18 @@ export function populateAncestorPageIndex(
     populateAncestorPageIndex(backlink.ref, objects, pagesArray, visited);
   });
 
-  const ancestorPageIndex = targetObject.backlinks
-    ?.map((backlink) =>
-      objects.find((obj) => isRefsEqual(obj.ref, backlink.ref))
-    )
-    .find((entry) => entry?.pageIndex !== undefined);
+  const ancestorPageIndexSet = new Set(
+    targetObject.backlinks
+      ?.map((backlink) =>
+        objects.find((obj) => isRefsEqual(obj.ref, backlink.ref))
+      )
+      .map((entry) => entry?.pageIndex)
+      .filter((v) => v !== undefined)
+  );
 
-  targetObject.pageIndex = ancestorPageIndex?.pageIndex;
+  if (ancestorPageIndexSet.size == 1) {
+    targetObject.pageIndex = ancestorPageIndexSet.values().next().value;
+  }
 }
 
 export function loadAllObjects(doc: PDFDocument): ObjectEntry[] {

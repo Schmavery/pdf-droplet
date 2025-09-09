@@ -17,7 +17,6 @@ export default function PdfView(props: {
   pageIndex?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  console.log("pageIndex", props);
 
   useEffect(() => {
     const abort = new AbortController();
