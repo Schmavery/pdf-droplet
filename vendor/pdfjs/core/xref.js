@@ -31,7 +31,6 @@ import {
 } from "./core_utils.js";
 import { BaseStream } from "./base_stream.js";
 import { CipherTransformFactory } from "./crypto.js";
-import { Stream } from "@pdfjs/core/stream.js";
 
 /**
  * @typedef {Object} XRefEntry

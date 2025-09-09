@@ -1,5 +1,5 @@
 import React from "react";
-import type { ObjectEntry, PDFVal } from "@/App";
+import type { ObjectEntry, PDFVal } from "@/loadPDF";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
 import ObjectBacklinks from "./ObjectBacklinks";
@@ -207,6 +207,10 @@ export default function ObjectDetail(props: {
   onRefClick: (ref: Ref) => void;
 }) {
   const val = props.object?.val;
+  if (val instanceof FlateStream) {
+    val.getBytes();
+  }
+  console.log("Rendering ObjectDetail for object:", props.object);
   return (
     <div className="p-2 border-l border-gray-200 h-full overflow-auto">
       <ObjectBreadcrumb

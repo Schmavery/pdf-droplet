@@ -1,16 +1,26 @@
-import type { ObjectEntry } from "@/App";
+import type { ObjectEntry } from "@/loadPDF";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getObjectType } from "@/object-utils";
+import { getObjectSizeString, getObjectType } from "@/objectUtils";
 import { Ref } from "@pdfjs/core/primitives";
 
-function ListItem(props: { entry: ObjectEntry; onClick?: () => void }) {
+function ListItem(props: {
+  entry: ObjectEntry;
+  onClick?: () => void;
+  selected: boolean;
+}) {
   return (
     <li>
       <button
+        aria-selected={props.selected}
         onClick={props.onClick}
-        className="rounded border border-solid border-gray-200 p-2 hover:bg-gray-50 w-full text-left"
+        className={
+          "rounded border border-solid border-gray-200 p-2 hover:bg-gray-50 aria-selected:bg-blue-200 w-full flex justify-between"
+        }
       >
-        {props.entry.ref.toString()} - {getObjectType(props.entry.val)}
+        <span>
+          {props.entry.ref.toString()} - {getObjectType(props.entry)}
+        </span>
+        <span>{getObjectSizeString(props.entry)}</span>
       </button>
     </li>
   );
@@ -18,6 +28,7 @@ function ListItem(props: { entry: ObjectEntry; onClick?: () => void }) {
 
 export default function ObjectList(props: {
   objects: ObjectEntry[];
+  selectedObject?: Ref;
   selectObject: (entry: Ref) => void;
 }) {
   if (props.objects.length === 0) {
@@ -35,6 +46,9 @@ export default function ObjectList(props: {
           {props.objects.map((entry) => (
             <ListItem
               key={entry.ref.toString()}
+              selected={
+                props.selectedObject?.toString() === entry.ref.toString()
+              }
               entry={entry}
               onClick={() => props.selectObject(entry.ref)}
             />

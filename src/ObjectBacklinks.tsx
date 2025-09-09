@@ -1,11 +1,11 @@
 import React from "react";
-import type { ObjectEntry } from "@/App";
+import type { ObjectEntry } from "@/loadPDF";
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { getObjectType } from "@/object-utils";
+import { getObjectType } from "@/objectUtils";
 import type { Ref } from "@pdfjs/core/primitives";
 
 export default function ObjectBacklinks({
@@ -71,7 +71,7 @@ export default function ObjectBacklinks({
           <ul style={{ marginTop: 8 }}>
             {backlinks.map((entry) => (
               <li key={entry.ref.toString()}>
-                {`${getObjectType(entry.val)}`}{" "}
+                {`${getObjectType(entry)}`}{" "}
                 <button
                   type="button"
                   style={{

@@ -1,4 +1,4 @@
-import type { ObjectEntry } from "@/App";
+import { FONT_LOADER, PDF_COMMON_OBJECTS, type ObjectEntry } from "@/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { useEffect, useRef } from "react";
 import { DOMCanvasFactory } from "@pdfjs/display/canvas_factory.js";
@@ -8,23 +8,27 @@ import { OperatorList } from "@pdfjs/core/operator_list";
 import { CanvasGraphics } from "@pdfjs/display/canvas.js";
 import { RESOURCES_KEYS_OPERATOR_LIST } from "@pdfjs/core/core_utils";
 import type { Stream } from "@pdfjs/core/stream";
-import { FontFaceObject, FontLoader } from "@pdfjs/display/font_loader";
+import { FontFaceObject } from "@pdfjs/display/font_loader";
 import { PageViewport } from "@pdfjs/display/display_utils";
-
-const FONT_LOADER = new FontLoader({ ownerDocument: document });
 
 export default function PdfView(props: {
   manager?: LocalPdfManager;
   objects: ObjectEntry[];
+  pageIndex?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  console.log("pageIndex", props);
 
   useEffect(() => {
+    const abort = new AbortController();
     const render = async () => {
       if (!props.manager) return;
       const pdfDoc = props.manager.pdfDocument;
       if (!pdfDoc) return;
-      const page: Page = await pdfDoc.getPage(0);
+      const page: Page = await pdfDoc.getPage(props.pageIndex ?? 0);
+      if (abort.signal.aborted) {
+        return;
+      }
       page.loadResources(RESOURCES_KEYS_OPERATOR_LIST);
 
       const viewport = new PageViewport({
@@ -46,10 +50,9 @@ export default function PdfView(props: {
 
       // Create local caches
       const objs = new PDFObjects();
-      const commonObjs = new PDFObjects();
+      // const commonObjs = new PDFObjects();
 
       console.log("Resources:", page.resources.get("Font"));
-      console.log("All objects preloaded into PDFObjects:", objs);
 
       // Directly call partialEvaluator.getOperatorList
       const partialEvaluator = page.createPartialEvaluator({
@@ -63,23 +66,28 @@ export default function PdfView(props: {
             if ("error" in data) {
               const exportedError = data.error;
               console.warn(`Error during font loading: ${exportedError}`);
-              commonObjs.resolve(id, exportedError);
+              PDF_COMMON_OBJECTS.resolve(id, exportedError);
               return;
             }
             if (type === "Font") {
+              // @ts-expect-error need to do this
               data.disableFontFace = false;
+              // @ts-expect-error need to do this
               data.fontExtraProperties = false;
               const font = new FontFaceObject(data);
               console.log("FontFaceObject created:", font);
               FONT_LOADER.bind(font).finally(() => {
                 console.log(`Font loaded and resolved for id: ${id}`, font);
-                commonObjs.resolve(id, font);
+                PDF_COMMON_OBJECTS.resolve(id, font);
               });
             }
           }
         },
       });
       const contentStream = await page.getContentStream();
+      if (abort.signal.aborted) {
+        return;
+      }
       const opList = new OperatorList();
       await partialEvaluator.getOperatorList({
         stream: contentStream,
@@ -90,11 +98,17 @@ export default function PdfView(props: {
         ),
         operatorList: opList,
       });
+      if (abort.signal.aborted) {
+        return;
+      }
+
+      console.log("Operator List:", opList);
+      console.log("Common Objects:", PDF_COMMON_OBJECTS);
 
       // Use CanvasGraphics to render
       const gfx = new CanvasGraphics(
         context,
-        commonObjs,
+        PDF_COMMON_OBJECTS,
         objs,
         canvasFactory,
         null,
@@ -122,7 +136,8 @@ export default function PdfView(props: {
       }
     };
     render();
-  }, [props.manager, props.objects]);
+    return () => abort.abort();
+  }, [props.manager, props.objects, props.pageIndex]);
 
   return (
     <div className="p-4">

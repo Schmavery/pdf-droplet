@@ -1886,12 +1886,13 @@ class PartialEvaluator {
        */
       const operation = {};
       /**
-       * @type {any}
-       */
-      /**
        * @type {boolean}
        */
-      let stop, i, ii, cs, name, isValidName;
+      let stop;
+      let i, ii, cs;
+      /** @type {string} */
+      let name;
+      let isValidName = false;
       while (!(stop = timeSlotManager.check())) {
         // The arguments parsed by read() are used beyond this loop, so we
         // cannot reuse the same array on each iteration. Therefore we pass
@@ -1920,76 +1921,80 @@ class PartialEvaluator {
             }
 
             next(
-              new Promise(function (resolveXObject, rejectXObject) {
-                if (!isValidName) {
-                  throw new FormatError("XObject must be referred to by name.");
-                }
-
-                let xobj = xobjs.getRaw(name);
-                if (xobj instanceof Ref) {
-                  const cachedImage =
-                    localImageCache.getByRef(xobj) ||
-                    self._regionalImageCache.getByRef(xobj) ||
-                    self.globalImageCache.getData(xobj, self.pageIndex);
-                  if (cachedImage) {
-                    addCachedImageOps(operatorList, cachedImage);
-                    resolveXObject();
-                    return;
+              /** @type {Promise<void>} */ (
+                new Promise(function (resolveXObject, rejectXObject) {
+                  if (!isValidName) {
+                    throw new FormatError(
+                      "XObject must be referred to by name."
+                    );
                   }
 
-                  xobj = xref.fetch(xobj);
-                }
-
-                if (!(xobj instanceof BaseStream)) {
-                  throw new FormatError("XObject should be a stream");
-                }
-
-                const type = xobj.dict.get("Subtype");
-                if (!(type instanceof Name)) {
-                  throw new FormatError("XObject should have a Name subtype");
-                }
-
-                if (type.name === "Form") {
-                  stateManager.save();
-                  self
-                    .buildFormXObject(
-                      resources,
-                      xobj,
-                      null,
-                      operatorList,
-                      task,
-                      stateManager.state.clone({ newPath: true }),
-                      localColorSpaceCache,
-                      seenRefs
-                    )
-                    .then(function () {
-                      stateManager.restore();
+                  let xobj = xobjs.getRaw(name);
+                  if (xobj instanceof Ref) {
+                    const cachedImage =
+                      localImageCache.getByRef(xobj) ||
+                      self._regionalImageCache.getByRef(xobj) ||
+                      self.globalImageCache.getData(xobj, self.pageIndex);
+                    if (cachedImage) {
+                      addCachedImageOps(operatorList, cachedImage);
                       resolveXObject();
-                    }, rejectXObject);
-                  return;
-                } else if (type.name === "Image") {
-                  self
-                    .buildPaintImageXObject({
-                      resources,
-                      image: xobj,
-                      operatorList,
-                      cacheKey: name,
-                      localImageCache,
-                      localColorSpaceCache,
-                    })
-                    .then(resolveXObject, rejectXObject);
-                  return;
-                } else if (type.name === "PS") {
-                  // PostScript XObjects are unused when viewing documents.
-                  // See section 4.7.1 of Adobe's PDF reference.
-                  info("Ignored XObject subtype PS");
-                } else {
-                  throw new FormatError(
-                    `Unhandled XObject subtype ${type.name}`
-                  );
-                }
-                resolveXObject();
-              }).catch(function (reason) {
+                      return;
+                    }
+
+                    xobj = xref.fetch(xobj);
+                  }
+
+                  if (!(xobj instanceof BaseStream)) {
+                    throw new FormatError("XObject should be a stream");
+                  }
+
+                  const type = xobj.dict.get("Subtype");
+                  if (!(type instanceof Name)) {
+                    throw new FormatError("XObject should have a Name subtype");
+                  }
+
+                  if (type.name === "Form") {
+                    stateManager.save();
+                    self
+                      .buildFormXObject(
+                        resources,
+                        xobj,
+                        null,
+                        operatorList,
+                        task,
+                        stateManager.state.clone({ newPath: true }),
+                        localColorSpaceCache,
+                        seenRefs
+                      )
+                      .then(function () {
+                        stateManager.restore();
+                        resolveXObject();
+                      }, rejectXObject);
+                    return;
+                  } else if (type.name === "Image") {
+                    self
+                      .buildPaintImageXObject({
+                        resources,
+                        image: xobj,
+                        operatorList,
+                        cacheKey: name,
+                        localImageCache,
+                        localColorSpaceCache,
+                      })
+                      .then(resolveXObject, rejectXObject);
+                    return;
+                  } else if (type.name === "PS") {
+                    // PostScript XObjects are unused when viewing documents.
+                    // See section 4.7.1 of Adobe's PDF reference.
+                    info("Ignored XObject subtype PS");
+                  } else {
+                    throw new FormatError(
+                      `Unhandled XObject subtype ${type.name}`
+                    );
+                  }
+                  resolveXObject();
+                })
+              ).catch(function (reason) {
                 if (reason instanceof AbortException) {
                   return;
                 }

@@ -5,105 +5,80 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 
-// import {PDFDocument} from "@pdfjs/core/document";
 import { LocalPdfManager } from "@pdfjs/core/pdf_manager";
-import type { CIRCULAR_REF } from "@pdfjs/core/primitives.js";
-import { isRefsEqual, Ref, Dict } from "@pdfjs/core/primitives.js";
+import { isRefsEqual, Ref } from "@pdfjs/core/primitives.js";
 import ObjectList from "@/ObjectList";
 import ObjectDetail from "@/ObjectDetail";
 import PdfView from "@/PdfView";
-import { BaseStream } from "@pdfjs/core/base_stream";
-import { FlateStream } from "@pdfjs/core/flate_stream";
-import { Stream } from "@pdfjs/core/stream";
+import {
+  loadAllObjects,
+  loadRenderingDataForPage,
+  type ObjectEntry,
+} from "@/loadPDF";
+import { nanoid } from "nanoid";
+import type { OperatorList } from "@pdfjs/core/operator_list";
 
-export type PDFVal =
-  | Dict
-  | BaseStream
-  | null
-  | number
-  | string
-  | typeof CIRCULAR_REF;
-
-export type Backlink = {
-  ref: Ref;
-  val: PDFVal;
+type PageEntry = {
+  pageIndex: number;
+  operatorList: OperatorList;
 };
-
-export type ObjectEntry = {
-  ref: Ref;
-  val: PDFVal;
-  backlinks?: Backlink[];
-};
-
-// Utility to recursively find all Refs in a value
-function findRefs(val: PDFVal): Ref[] {
-  const refs: Ref[] = [];
-  if (val instanceof Ref) {
-    refs.push(val);
-  } else if (val instanceof Dict) {
-    for (const v of val._map.values()) {
-      refs.push(...findRefs(v));
-    }
-  } else if (Array.isArray(val)) {
-    for (const v of val) {
-      refs.push(...findRefs(v));
-    }
-  } else if (val && (val instanceof FlateStream || val instanceof Stream)) {
-    const dictVal = val.dict;
-    if (dictVal) refs.push(...findRefs(dictVal));
-  }
-  return refs;
-}
-
-// Find backlinks for a given Ref
-function getBacklinks(objects: ObjectEntry[], targetRef: Ref): ObjectEntry[] {
-  return objects.filter((obj) => {
-    if (!obj.val) return false;
-    const refs = findRefs(obj.val);
-    return refs.some((r) => isRefsEqual(r, targetRef));
-  });
-}
 
 function App() {
-  const [manager, setManager] = useState<LocalPdfManager | undefined>();
-  const [objects, setObjects] = useState<ObjectEntry[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<Ref[]>([]);
+  const [pdfState, setPdfState] = useState<{
+    manager?: LocalPdfManager;
+    pages: PageEntry[];
+    objects: ObjectEntry[];
+  }>({
+    manager: undefined,
+    pages: [],
+    objects: [],
+  });
 
   useEffect(() => {
-    fetch("/sample-local-pdf.pdf")
+    const controller = new AbortController();
+    fetch("/sample-local-pdf.pdf", { signal: controller.signal })
       .then((response) => response.arrayBuffer())
-      .then((buffer) => {
+      .then(async (buffer) => {
+        if (controller.signal.aborted) return;
         const uint8Array = new Uint8Array(buffer);
         const manager = new LocalPdfManager({
           source: uint8Array,
           evaluatorOptions: { isOffscreenCanvasSupported: true },
-          docId: "sample-local-pdf",
+          docId: nanoid(10),
         });
         manager.pdfDocument.checkHeader();
         manager.pdfDocument.parseStartXRef();
         manager.pdfDocument.parse();
-        setManager(manager);
+        const entries = loadAllObjects(manager.pdfDocument);
+        const pageInfos = Promise.all(
+          Array.from({ length: manager.pdfDocument.numPages }, (_, i) => i).map(
+            async (pageIndex) => {
+              return {
+                pageIndex,
+                operatorList: await loadRenderingDataForPage(
+                  manager.pdfDocument,
+                  pageIndex
+                ),
+              };
+            }
+          )
+        );
+        setPdfState({ manager, pages: await pageInfos, objects: entries });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error("Error loading PDF:", error);
       });
+    return () => {
+      controller.abort("unmount");
+    };
   }, []);
 
-  useEffect(() => {
-    if (manager) {
-      const entries = Object.entries(manager.pdfDocument.xref.entries)
-        .slice(1)
-        .map(([key, value]) => {
-          const ref = new Ref(parseInt(key), value.gen);
-          const val = manager.pdfDocument.xref.fetch(ref);
-          return { ref, val, backlinks: [] } as ObjectEntry;
-        }) as ObjectEntry[];
-      entries.forEach((entry) => {
-        entry.backlinks = getBacklinks(entries, entry.ref);
-      });
-      setObjects(entries);
-    }
-  }, [manager]);
-
   const currentObject = breadcrumb.length
-    ? objects.find((e) => isRefsEqual(e.ref, breadcrumb[breadcrumb.length - 1]))
+    ? pdfState.objects.find((e) =>
+        isRefsEqual(e.ref, breadcrumb[breadcrumb.length - 1])
+      )
     : undefined;
 
   return (
@@ -113,7 +88,8 @@ function App() {
           <ResizablePanelGroup direction="vertical" className="gap-0.5">
             <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mt-2 ml-2">
               <ObjectList
-                objects={objects}
+                objects={pdfState.objects}
+                selectedObject={currentObject?.ref}
                 selectObject={(r) => setBreadcrumb([r])}
               />
             </ResizablePanel>
@@ -127,7 +103,7 @@ function App() {
                   setBreadcrumb(newBreadcrumb);
                 }}
                 onRefClick={(ref) => {
-                  const entry = objects.find((obj) =>
+                  const entry = pdfState.objects.find((obj) =>
                     isRefsEqual(obj.ref, ref)
                   );
                   if (entry) {
@@ -141,7 +117,11 @@ function App() {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white m-2 ml-0">
-          <PdfView objects={objects} manager={manager} />
+          <PdfView
+            objects={pdfState.objects}
+            manager={pdfState.manager}
+            pageIndex={currentObject?.pageIndex}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
