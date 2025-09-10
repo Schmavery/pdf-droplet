@@ -27,7 +27,7 @@ function suffix(entry: ObjectEntry): string {
   return ` (${firstWithHint?.hint})`;
 }
 
-function objectSizeBytes(val: PDFVal): number {
+export function objectSizeBytes(val: PDFVal): number {
   if (val instanceof FlateStream) {
     return val.bufferLength;
   } else if (val instanceof Stream) {

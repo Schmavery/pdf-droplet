@@ -1,5 +1,5 @@
 import React from "react";
-import type { ObjectEntry } from "@/loadPDF";
+import type { Backlink, ObjectMap } from "@/loadPDF";
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -8,15 +8,13 @@ import {
 import { getObjectType } from "@/objectUtils";
 import type { Ref } from "@pdfjs/core/primitives";
 
-export default function ObjectBacklinks({
-  backlinks,
-  onRefClick,
-}: {
-  backlinks: ObjectEntry[];
+export default function ObjectBacklinks(props: {
+  backlinks: Backlink[];
+  objects: ObjectMap;
   onRefClick: (ref: Ref) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  if (!backlinks || backlinks.length === 0) return null;
+  if (!props.backlinks || props.backlinks.length === 0) return null;
   return (
     <div style={{ marginTop: 24 }}>
       <Collapsible open={open} onOpenChange={setOpen}>
@@ -64,31 +62,36 @@ export default function ObjectBacklinks({
                 />
               </svg>
             </span>
-            Referenced by ({backlinks.length})
+            Referenced by ({props.backlinks.length})
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <ul style={{ marginTop: 8 }}>
-            {backlinks.map((entry) => (
-              <li key={entry.ref.toString()}>
-                {`${getObjectType(entry)}`}{" "}
-                <button
-                  type="button"
-                  style={{
-                    color: "#007bff",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                    fontFamily: "monospace",
-                    fontSize: 14,
-                  }}
-                  onClick={() => onRefClick(entry.ref)}
-                >
-                  {entry.ref.toString()}
-                </button>
-              </li>
-            ))}
+            {props.backlinks
+              .map((l) => {
+                const o = props.objects.get(l.ref);
+                return { ref: l.ref, obj: o };
+              })
+              .map((entry) => (
+                <li key={entry.ref.toString()}>
+                  {`${entry.obj ? getObjectType(entry.obj) : "Unknown"}`}{" "}
+                  <button
+                    type="button"
+                    style={{
+                      color: "#007bff",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      fontFamily: "monospace",
+                      fontSize: 14,
+                    }}
+                    onClick={() => props.onRefClick(entry.ref)}
+                  >
+                    {entry.ref.toString()}
+                  </button>
+                </li>
+              ))}
           </ul>
         </CollapsibleContent>
       </Collapsible>

@@ -1,4 +1,4 @@
-import { FONT_LOADER, PDF_COMMON_OBJECTS, type ObjectEntry } from "@/loadPDF";
+import { FONT_LOADER, PDF_COMMON_OBJECTS, type ObjectMap } from "@/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { useEffect, useRef } from "react";
 import { DOMCanvasFactory } from "@pdfjs/display/canvas_factory.js";
@@ -13,7 +13,7 @@ import { PageViewport } from "@pdfjs/display/display_utils";
 
 export default function PdfView(props: {
   manager?: LocalPdfManager;
-  objects: ObjectEntry[];
+  objects: ObjectMap;
   pageIndex?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

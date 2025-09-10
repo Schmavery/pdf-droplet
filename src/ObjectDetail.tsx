@@ -1,5 +1,5 @@
 import React from "react";
-import type { ObjectEntry, PDFVal } from "@/loadPDF";
+import type { ObjectEntry, ObjectMap, PDFVal } from "@/loadPDF";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
 import ObjectBacklinks from "./ObjectBacklinks";
@@ -202,6 +202,7 @@ function DictEntries(props: {
 
 export default function ObjectDetail(props: {
   object: ObjectEntry | undefined;
+  objects: ObjectMap;
   breadcrumb: Ref[];
   onBreadcrumbNavigate: (index: number) => void;
   onRefClick: (ref: Ref) => void;
@@ -272,6 +273,7 @@ export default function ObjectDetail(props: {
           {props.object.backlinks && props.object.backlinks.length > 0 && (
             <ObjectBacklinks
               backlinks={props.object.backlinks}
+              objects={props.objects}
               onRefClick={props.onRefClick}
             />
           )}

@@ -6,14 +6,14 @@ import {
 } from "@/components/ui/resizable";
 
 import { LocalPdfManager } from "@pdfjs/core/pdf_manager";
-import { isRefsEqual, Ref } from "@pdfjs/core/primitives.js";
+import { Ref } from "@pdfjs/core/primitives.js";
 import ObjectList from "@/ObjectList";
 import ObjectDetail from "@/ObjectDetail";
 import PdfView from "@/PdfView";
 import {
   loadAllObjects,
   loadRenderingDataForPage,
-  type ObjectEntry,
+  type ObjectMap,
 } from "@/loadPDF";
 import { nanoid } from "nanoid";
 import type { OperatorList } from "@pdfjs/core/operator_list";
@@ -25,15 +25,14 @@ type PageEntry = {
 
 function App() {
   const [breadcrumb, setBreadcrumb] = useState<Ref[]>([]);
-  const [pdfState, setPdfState] = useState<{
-    manager?: LocalPdfManager;
-    pages: PageEntry[];
-    objects: ObjectEntry[];
-  }>({
-    manager: undefined,
-    pages: [],
-    objects: [],
-  });
+  const [pdfState, setPdfState] = useState<
+    | {
+        manager?: LocalPdfManager;
+        pages: PageEntry[];
+        objects: ObjectMap;
+      }
+    | undefined
+  >();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -75,10 +74,12 @@ function App() {
     };
   }, []);
 
+  if (!pdfState) {
+    return "Loading";
+  }
+
   const currentObject = breadcrumb.length
-    ? pdfState.objects.find((e) =>
-        isRefsEqual(e.ref, breadcrumb[breadcrumb.length - 1])
-      )
+    ? pdfState.objects.get(breadcrumb[breadcrumb.length - 1])
     : undefined;
 
   return (
@@ -103,14 +104,13 @@ function App() {
                   setBreadcrumb(newBreadcrumb);
                 }}
                 onRefClick={(ref) => {
-                  const entry = pdfState.objects.find((obj) =>
-                    isRefsEqual(obj.ref, ref)
-                  );
+                  const entry = pdfState.objects.get(ref);
                   if (entry) {
                     setBreadcrumb([...breadcrumb, entry.ref]);
                   }
                 }}
                 object={currentObject}
+                objects={pdfState.objects}
               />
             </ResizablePanel>
           </ResizablePanelGroup>

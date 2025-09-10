@@ -21,7 +21,6 @@ export type PDFVal =
 
 export type Backlink = {
   ref: Ref;
-  val: PDFVal;
   hint?: string;
 };
 
@@ -37,6 +36,13 @@ export type ObjectEntry = {
   pageIndex?: number;
   backlinks?: Backlink[];
 };
+
+export type ObjectMap = Map<Ref, ObjectEntry>;
+// export class ObjectMap {
+//   constructor() {
+
+//   }
+// }
 
 export function findRefs(val: PDFVal, hint?: string) {
   const refs: { ref: Ref; hint?: string }[] = [];
@@ -105,7 +111,7 @@ export function populateAncestorPageIndex(
   }
 }
 
-export function loadAllObjects(doc: PDFDocument): ObjectEntry[] {
+export function loadAllObjects(doc: PDFDocument): ObjectMap {
   const entries = Object.entries(doc.xref.entries)
     .slice(1)
     .map(([key, value]) => {
@@ -123,7 +129,7 @@ export function loadAllObjects(doc: PDFDocument): ObjectEntry[] {
     entry.backlinks = entries.flatMap((e) => {
       const links = backlinksIndex[e.ref.toString()];
       const match = links.find((link) => isRefsEqual(link.ref, entry.ref));
-      return match ? { ref: e.ref, hint: match.hint, val: e.val } : [];
+      return match ? { ref: e.ref, hint: match.hint } : [];
     });
   });
   const infoRef = doc.xref.trailer?.getRaw("Info") as Ref | undefined;
@@ -144,7 +150,7 @@ export function loadAllObjects(doc: PDFDocument): ObjectEntry[] {
       populateAncestorPageIndex(entry.ref, entries, pagesArray);
     });
   }
-  return entries;
+  return new Map(entries.map((e) => [e.ref, e]));
 }
 
 export async function loadRenderingDataForPage(

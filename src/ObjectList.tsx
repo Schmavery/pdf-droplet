@@ -1,7 +1,21 @@
-import type { ObjectEntry } from "@/loadPDF";
+import type { ObjectEntry, ObjectMap } from "@/loadPDF";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getObjectSizeString, getObjectType } from "@/objectUtils";
+import {
+  getObjectSizeString,
+  getObjectType,
+  objectSizeBytes,
+} from "@/objectUtils";
 import { Ref } from "@pdfjs/core/primitives";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuPortal,
+} from "@radix-ui/react-dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { ChevronsUpDown } from "lucide-react";
+import { DropdownMenuSortItem } from "@/components/ui/dropdown-menu";
+import { useState } from "react";
 
 function ListItem(props: {
   entry: ObjectEntry;
@@ -26,12 +40,108 @@ function ListItem(props: {
   );
 }
 
+type SortValue = {
+  row: "PAGE" | "SIZE" | "OBJ";
+  dir: "ASC" | "DESC";
+};
+
+function getSortValue(o: ObjectEntry, row: SortValue["row"]) {
+  switch (row) {
+    case "PAGE":
+      return o.pageIndex;
+    case "SIZE":
+      return objectSizeBytes(o.val);
+    case "OBJ":
+      return o.ref.num;
+  }
+}
+
+function makeSortComparator(sort: SortValue) {
+  return (a: ObjectEntry, b: ObjectEntry): number => {
+    const key = sort.row;
+    let result = 0;
+
+    const av = getSortValue(a, key);
+    const bv = getSortValue(b, key);
+
+    if (typeof av === "number" && typeof bv === "number") {
+      result = av - bv;
+    } else {
+      result = String(av).localeCompare(String(bv));
+    }
+
+    return sort.dir === "ASC" ? result : -result;
+  };
+}
+
+function SortDropdownItem(props: {
+  row: SortValue["row"];
+  sortValue: SortValue;
+  setSortValue: (v: SortValue) => void;
+  children: string;
+}) {
+  return (
+    <DropdownMenuSortItem
+      sort={props.sortValue.row === props.row ? props.sortValue.dir : undefined}
+      onSelect={() => {
+        const currentValue =
+          props.sortValue.row == props.row ? props.sortValue.dir : undefined;
+        const newValue = currentValue == "ASC" ? "DESC" : "ASC";
+        props.setSortValue({ row: props.row, dir: newValue });
+      }}
+      children={props.children}
+    />
+  );
+}
+
+function SortDropdown(props: {
+  value: SortValue;
+  setValue: (v: SortValue) => void;
+}) {
+  return (
+    <DropdownMenu modal>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm">
+          <ChevronsUpDown />{" "}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent className="shadow border border-solid border-gray-200 rounded bg-white">
+          <SortDropdownItem
+            row="OBJ"
+            sortValue={props.value}
+            setSortValue={props.setValue}
+          >
+            Object ID
+          </SortDropdownItem>
+          <SortDropdownItem
+            row="PAGE"
+            sortValue={props.value}
+            setSortValue={props.setValue}
+          >
+            Page Num
+          </SortDropdownItem>
+          <SortDropdownItem
+            row="SIZE"
+            sortValue={props.value}
+            setSortValue={props.setValue}
+          >
+            Size
+          </SortDropdownItem>
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
+  );
+}
+
 export default function ObjectList(props: {
-  objects: ObjectEntry[];
+  objects: ObjectMap;
   selectedObject?: Ref;
   selectObject: (entry: Ref) => void;
 }) {
-  if (props.objects.length === 0) {
+  const [sort, setSort] = useState<SortValue>({ row: "OBJ", dir: "ASC" });
+
+  if (props.objects.size === 0) {
     return (
       <div className="p-3">
         <p>No objects available.</p>
@@ -39,11 +149,20 @@ export default function ObjectList(props: {
     );
   }
 
+  const objects = [...props.objects.values()];
+  objects.sort(makeSortComparator(sort));
+
   return (
-    <div className="p-1 h-full w-full">
-      <ScrollArea className="h-full w-full">
-        <ul className="space-y-1 ">
-          {props.objects.map((entry) => (
+    <div className=" h-full w-full flex flex-col">
+      <div className="shadow-[0_4px_2px_-2px] shadow-gray-200 py-1 px-2 flex justify-between">
+        <div>Objects</div>
+        <div>
+          <SortDropdown value={sort} setValue={setSort} />
+        </div>
+      </div>
+      <ScrollArea className="w-full flex-1 min-h-0 p-1 mb-1">
+        <ul className="space-y-1">
+          {objects.map((entry) => (
             <ListItem
               key={entry.ref.toString()}
               selected={
