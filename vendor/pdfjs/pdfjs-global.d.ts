@@ -1,6 +1,6 @@
 // Type definitions for PDF.js (ambient/global)
 
-declare const PDFJSDev: Regxp | undefined;
+declare const PDFJSDev: RegExp | undefined;
 
 type EvaluatorOptions = {
   canvasMaxAreaInBytes?: number;
