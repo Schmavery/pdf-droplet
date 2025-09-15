@@ -1,11 +1,11 @@
 import React from "react";
-import type { Backlink, ObjectMap } from "@/loadPDF";
+import type { Backlink, ObjectMap } from "@/lib/loadPDF";
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { getObjectType } from "@/objectUtils";
+import { getObjectType } from "@/lib/objectUtils";
 import type { Ref } from "@pdfjs/core/primitives";
 
 export default function ObjectBacklinks(props: {

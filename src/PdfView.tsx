@@ -1,4 +1,4 @@
-import { FONT_LOADER, PDF_COMMON_OBJECTS, type ObjectMap } from "@/loadPDF";
+import { FONT_LOADER, PDF_COMMON_OBJECTS, type ObjectMap } from "@/lib/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { useEffect, useRef } from "react";
 import { DOMCanvasFactory } from "@pdfjs/display/canvas_factory.js";

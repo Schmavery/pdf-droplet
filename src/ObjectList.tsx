@@ -1,10 +1,12 @@
-import type { ObjectEntry, ObjectMap } from "@/loadPDF";
+import type { ObjectEntry, ObjectMap } from "@/lib/loadPDF";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  DEFAULT_SORT,
   getObjectSizeString,
   getObjectType,
-  objectSizeBytes,
-} from "@/objectUtils";
+  makeSortComparator,
+  type SortValue,
+} from "@/lib/objectUtils";
 import { Ref } from "@pdfjs/core/primitives";
 import {
   DropdownMenu,
@@ -38,40 +40,6 @@ function ListItem(props: {
       </button>
     </li>
   );
-}
-
-type SortValue = {
-  row: "PAGE" | "SIZE" | "OBJ";
-  dir: "ASC" | "DESC";
-};
-
-function getSortValue(o: ObjectEntry, row: SortValue["row"]) {
-  switch (row) {
-    case "PAGE":
-      return o.pageIndex;
-    case "SIZE":
-      return objectSizeBytes(o.val);
-    case "OBJ":
-      return o.ref.num;
-  }
-}
-
-function makeSortComparator(sort: SortValue) {
-  return (a: ObjectEntry, b: ObjectEntry): number => {
-    const key = sort.row;
-    let result = 0;
-
-    const av = getSortValue(a, key);
-    const bv = getSortValue(b, key);
-
-    if (typeof av === "number" && typeof bv === "number") {
-      result = av - bv;
-    } else {
-      result = String(av).localeCompare(String(bv));
-    }
-
-    return sort.dir === "ASC" ? result : -result;
-  };
 }
 
 function SortDropdownItem(props: {
@@ -139,7 +107,7 @@ export default function ObjectList(props: {
   selectedObject?: Ref;
   selectObject: (entry: Ref) => void;
 }) {
-  const [sort, setSort] = useState<SortValue>({ row: "OBJ", dir: "ASC" });
+  const [sort, setSort] = useState<SortValue>(DEFAULT_SORT);
 
   if (props.objects.size === 0) {
     return (

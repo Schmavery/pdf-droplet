@@ -1,5 +1,5 @@
 import React from "react";
-import type { ObjectEntry, ObjectMap, PDFVal } from "@/loadPDF";
+import type { ObjectEntry, ObjectMap, PDFVal } from "@/lib/loadPDF";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
 import ObjectBacklinks from "./ObjectBacklinks";

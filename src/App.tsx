@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -14,9 +14,11 @@ import {
   loadAllObjects,
   loadRenderingDataForPage,
   type ObjectMap,
-} from "@/loadPDF";
+} from "@/lib/loadPDF";
 import { nanoid } from "nanoid";
 import type { OperatorList } from "@pdfjs/core/operator_list";
+import { DEFAULT_SORT, makeSortComparator } from "@/lib/objectUtils";
+import DropZone from "@/DropZone";
 
 type PageEntry = {
   pageIndex: number;
@@ -25,57 +27,106 @@ type PageEntry = {
 
 function App() {
   const [breadcrumb, setBreadcrumb] = useState<Ref[]>([]);
+  const [file, setFile] = useState<ArrayBuffer>();
   const [pdfState, setPdfState] = useState<
     | {
         manager?: LocalPdfManager;
         pages: PageEntry[];
         objects: ObjectMap;
       }
-    | undefined
+    | "loading"
   >();
 
+  const isDemo = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("demo");
+  }, []);
+
   useEffect(() => {
+    if (!isDemo) return;
     const controller = new AbortController();
     fetch("/sample-local-pdf.pdf", { signal: controller.signal })
       .then((response) => response.arrayBuffer())
-      .then(async (buffer) => {
+      .then((buffer) => {
         if (controller.signal.aborted) return;
-        const uint8Array = new Uint8Array(buffer);
-        const manager = new LocalPdfManager({
-          source: uint8Array,
-          evaluatorOptions: { isOffscreenCanvasSupported: true },
-          docId: nanoid(10),
-        });
-        manager.pdfDocument.checkHeader();
-        manager.pdfDocument.parseStartXRef();
-        manager.pdfDocument.parse();
-        const entries = loadAllObjects(manager.pdfDocument);
-        const pageInfos = Promise.all(
-          Array.from({ length: manager.pdfDocument.numPages }, (_, i) => i).map(
-            async (pageIndex) => {
-              return {
-                pageIndex,
-                operatorList: await loadRenderingDataForPage(
-                  manager.pdfDocument,
-                  pageIndex
-                ),
-              };
-            }
-          )
-        );
-        setPdfState({ manager, pages: await pageInfos, objects: entries });
+        setFile(buffer);
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
-        console.error("Error loading PDF:", error);
+        console.error("Error loading file:", error);
       });
     return () => {
       controller.abort("unmount");
     };
-  }, []);
+  }, [isDemo]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function go() {
+      if (!file) return;
+      if (controller.signal.aborted) return;
+      const uint8Array = new Uint8Array(file);
+      const manager = new LocalPdfManager({
+        source: uint8Array,
+        evaluatorOptions: { isOffscreenCanvasSupported: true },
+        docId: nanoid(10),
+      });
+      manager.pdfDocument.checkHeader();
+      manager.pdfDocument.parseStartXRef();
+      manager.pdfDocument.parse();
+      const entries = loadAllObjects(manager.pdfDocument);
+      const pageInfos = Promise.all(
+        Array.from({ length: manager.pdfDocument.numPages }, (_, i) => i).map(
+          async (pageIndex) => {
+            return {
+              pageIndex,
+              operatorList: await loadRenderingDataForPage(
+                manager.pdfDocument,
+                pageIndex
+              ),
+            };
+          }
+        )
+      );
+      setPdfState({ manager, pages: await pageInfos, objects: entries });
+
+      const objects = [...entries.values()];
+      objects.sort(makeSortComparator(DEFAULT_SORT));
+      const first = objects[0]?.ref;
+      setBreadcrumb(first ? [first] : []);
+    }
+    go();
+    return () => {
+      controller.abort("unmount");
+    };
+  }, [file]);
 
   if (!pdfState) {
-    return "Loading";
+    return (
+      <div className="h-screen w-full bg-gray-100">
+        <div className="flex flex-col p-3 min-h-screen h-screen max-w-3xl mx-auto">
+          <h1 className="text-2xl font-extrabold tracking-tight mb-6 mt-4 flex items-center gap-3">
+            <img src="/favicon.svg" className="h-8" /> PDF Droplet
+          </h1>
+          <DropZone setFile={async (f) => setFile(await f.arrayBuffer())} />
+          <div className="flex gap-1 mt-auto">
+            Inspired by
+            <a
+              href="https://fontdrop.info/"
+              target="_blank"
+              className="text-blue-600"
+            >
+              FontDrop!
+            </a>{" "}
+            ❤️
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pdfState === "loading") {
+    return "loading";
   }
 
   const currentObject = breadcrumb.length
@@ -87,7 +138,10 @@ function App() {
       <ResizablePanelGroup direction="horizontal" className="gap-0.5 margin-1">
         <ResizablePanel>
           <ResizablePanelGroup direction="vertical" className="gap-0.5">
-            <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mt-2 ml-2">
+            <ResizablePanel
+              defaultSize={33}
+              className="shadow border border-solid border-gray-200 rounded bg-white mt-2 ml-2"
+            >
               <ObjectList
                 objects={pdfState.objects}
                 selectedObject={currentObject?.ref}

@@ -1,4 +1,4 @@
-import type { ObjectEntry, PDFVal } from "@/loadPDF";
+import type { ObjectEntry, PDFVal } from "@/lib/loadPDF";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
@@ -96,4 +96,40 @@ export function getObjectType(val: ObjectEntry): string {
     default:
       return `${prefix(val)}unknown${suffix(val)}`;
   }
+}
+
+export type SortValue = {
+  row: "PAGE" | "SIZE" | "OBJ";
+  dir: "ASC" | "DESC";
+};
+
+export const DEFAULT_SORT = { row: "OBJ", dir: "ASC" } as const;
+
+function getSortValue(o: ObjectEntry, row: SortValue["row"]) {
+  switch (row) {
+    case "PAGE":
+      return o.pageIndex;
+    case "SIZE":
+      return objectSizeBytes(o.val);
+    case "OBJ":
+      return o.ref.num;
+  }
+}
+
+export function makeSortComparator(sort: SortValue) {
+  return (a: ObjectEntry, b: ObjectEntry): number => {
+    const key = sort.row;
+    let result = 0;
+
+    const av = getSortValue(a, key);
+    const bv = getSortValue(b, key);
+
+    if (typeof av === "number" && typeof bv === "number") {
+      result = av - bv;
+    } else {
+      result = String(av).localeCompare(String(bv));
+    }
+
+    return sort.dir === "ASC" ? result : -result;
+  };
 }
