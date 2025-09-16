@@ -11,6 +11,7 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
       "@pdfjs": resolve(__dirname, "./vendor/pdfjs"),
       "@components": resolve(__dirname, "./src/components"),
+      "@assets": resolve(__dirname, "./src/assets"),
     },
   },
   plugins: [tailwindcss(), react()],

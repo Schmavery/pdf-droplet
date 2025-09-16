@@ -20,6 +20,9 @@ import type { OperatorList } from "@pdfjs/core/operator_list";
 import { DEFAULT_SORT, makeSortComparator } from "@/lib/objectUtils";
 import DropZone from "@/DropZone";
 
+import favicon from "@assets/favicon.svg";
+import samplePDF from "@assets/sample-local-pdf.pdf";
+
 type PageEntry = {
   pageIndex: number;
   operatorList: OperatorList;
@@ -45,7 +48,7 @@ function App() {
   useEffect(() => {
     if (!isDemo) return;
     const controller = new AbortController();
-    fetch("/sample-local-pdf.pdf", { signal: controller.signal })
+    fetch(samplePDF, { signal: controller.signal })
       .then((response) => response.arrayBuffer())
       .then((buffer) => {
         if (controller.signal.aborted) return;
@@ -106,7 +109,7 @@ function App() {
       <div className="h-screen w-full bg-gray-100">
         <div className="flex flex-col p-3 min-h-screen h-screen max-w-3xl mx-auto">
           <h1 className="text-2xl font-extrabold tracking-tight mb-6 mt-4 flex items-center gap-3">
-            <img src="/favicon.svg" className="h-8" /> PDF Droplet
+            <img src={favicon} className="h-8" /> PDF Droplet
           </h1>
           <DropZone setFile={async (f) => setFile(await f.arrayBuffer())} />
           <div className="flex gap-1 mt-auto">

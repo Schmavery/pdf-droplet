@@ -67,7 +67,7 @@ class JpxImage {
     let instance = null;
     try {
       const mod = await (typeof PDFJSDev === "undefined"
-        ? import(path) // eslint-disable-line no-unsanitized/method
+        ? import(/* @vite-ignore */ path) // eslint-disable-line no-unsanitized/method
         : __raw_import__(path));
       instance = mod.default();
     } catch (e) {
