@@ -8,7 +8,6 @@ import { Stream } from "@pdfjs/core/stream";
 import { FontFaceObject, FontLoader } from "@pdfjs/display/font_loader";
 import { PDFObjects } from "@pdfjs/display/pdf_objects";
 import { bytesToString } from "@pdfjs/shared/util";
-import { start } from "repl";
 
 export const FONT_LOADER = new FontLoader({ ownerDocument: document });
 export const PDF_COMMON_OBJECTS = new PDFObjects();

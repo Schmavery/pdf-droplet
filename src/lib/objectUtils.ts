@@ -1,7 +1,7 @@
-import type { ObjectEntry, PDFVal } from "@/lib/loadPDF";
+import type { ObjectEntry } from "@/lib/loadPDF";
 import { DecryptStream } from "@pdfjs/core/decrypt_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
-import { Dict, Name, Ref } from "@pdfjs/core/primitives";
+import { Dict, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 
 const NUMBER_CHARS = [..."❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴"];
@@ -114,7 +114,7 @@ function getSortValue(o: ObjectEntry, row: SortValue["row"]) {
     case "PAGE":
       return o.pageIndex;
     case "SIZE":
-      return objectSizeBytes(o.val);
+      return o.streamRange.end - o.streamRange.start;
     case "OBJ":
       return o.ref.num;
   }
