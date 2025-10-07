@@ -17,15 +17,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { ChevronsUpDown } from "lucide-react";
 import { DropdownMenuSortItem } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function ListItem(props: {
   entry: ObjectEntry;
   onClick?: () => void;
   selected: boolean;
+  selectedRef?: React.RefObject<HTMLLIElement | null>;
 }) {
   return (
-    <li>
+    <li ref={props.selectedRef}>
       <button
         aria-selected={props.selected}
         onClick={props.onClick}
@@ -108,6 +109,14 @@ export default function ObjectList(props: {
   selectObject: (entry: Ref) => void;
 }) {
   const [sort, setSort] = useState<SortValue>(DEFAULT_SORT);
+  const selectedRef = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [props.selectedObject]);
 
   if (props.objects.size === 0) {
     return (
@@ -133,6 +142,11 @@ export default function ObjectList(props: {
           {objects.map((entry) => (
             <ListItem
               key={entry.ref.toString()}
+              selectedRef={
+                props.selectedObject?.toString() === entry.ref.toString()
+                  ? selectedRef
+                  : undefined
+              }
               selected={
                 props.selectedObject?.toString() === entry.ref.toString()
               }
