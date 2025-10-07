@@ -1,4 +1,5 @@
 import type { ObjectEntry, PDFVal } from "@/lib/loadPDF";
+import { DecryptStream } from "@pdfjs/core/decrypt_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
@@ -27,41 +28,39 @@ function suffix(entry: ObjectEntry): string {
   return ` (${firstWithHint?.hint})`;
 }
 
-export function objectSizeBytes(val: PDFVal): number {
-  if (val instanceof FlateStream) {
-    return val.bufferLength;
-  } else if (val instanceof Stream) {
-    return val?.length ?? 0;
-  } else if (val instanceof Dict) {
-    let totalSize = 0;
-    for (const [key, value] of val._map.entries()) {
-      totalSize += key.length;
-      totalSize += objectSizeBytes(value);
-    }
-    return totalSize;
-  } else if (Array.isArray(val)) {
-    return val.reduce((acc, item) => acc + objectSizeBytes(item), 0);
-  } else if (typeof val === "string") {
-    return val.length;
-  } else if (val instanceof Ref) {
-    return `${val.num} ${val.gen} R`.length;
-  } else if (val === null) {
-    return 4; // assuming 4 bytes for null representation ("null" string length)
-  } else if (typeof val === "boolean") {
-    return val ? 4 : 5; // assuming 4 bytes for "true" and 5 bytes for "false"
-  } else if (val instanceof Name) {
-    return val.name.length;
-  } else if (typeof val === "number") {
-    return 8; // assuming 8 bytes for a number
-  }
-  console.warn("Unknown PDFVal type for size calculation", val);
-  return 0;
-}
+// export function objectSizeBytes(val: PDFVal): number {
+//   if (val instanceof FlateStream) {
+//     return val.bufferLength;
+//   } else if (val instanceof Stream) {
+//     return val?.length ?? 0;
+//   } else if (val instanceof Dict) {
+//     let totalSize = 0;
+//     for (const [key, value] of val._map.entries()) {
+//       totalSize += key.length;
+//       totalSize += objectSizeBytes(value);
+//     }
+//     return totalSize;
+//   } else if (Array.isArray(val)) {
+//     return val.reduce((acc, item) => acc + objectSizeBytes(item), 0);
+//   } else if (typeof val === "string") {
+//     return val.length;
+//   } else if (val instanceof Ref) {
+//     return `${val.num} ${val.gen} R`.length;
+//   } else if (val === null) {
+//     return 4; // assuming 4 bytes for null representation ("null" string length)
+//   } else if (typeof val === "boolean") {
+//     return val ? 4 : 5; // assuming 4 bytes for "true" and 5 bytes for "false"
+//   } else if (val instanceof Name) {
+//     return val.name.length;
+//   } else if (typeof val === "number") {
+//     return 8; // assuming 8 bytes for a number
+//   }
+//   console.warn("Unknown PDFVal type for size calculation", val);
+//   return 0;
+// }
 
 export function getObjectSizeString(val: ObjectEntry): string {
-  const objectDefinitionOverheadBytes =
-    `${val.ref.num} ${val.ref.gen} obj endobj`.length; // Rough overhead for object definition
-  const sizeBytes = objectSizeBytes(val.val) + objectDefinitionOverheadBytes;
+  const sizeBytes = val.streamRange.end - val.streamRange.start;
   if (sizeBytes < 1000) {
     return `${(sizeBytes / 1000).toFixed(2)}kB`;
   }
@@ -72,6 +71,8 @@ export function getObjectType(val: ObjectEntry): string {
   switch (true) {
     case val.val === null:
       return `${prefix(val)}null${suffix(val)}`;
+    case typeof val.val == "boolean":
+      return `${prefix(val)}Boolean${suffix(val)}`;
     case typeof val.val === "number":
       return `${prefix(val)}Number${suffix(val)}`;
     case typeof val.val === "string":
@@ -92,6 +93,9 @@ export function getObjectType(val: ObjectEntry): string {
     }
     case val.val instanceof FlateStream: {
       return `${prefix(val)}FlateStream${suffix(val)}`;
+    }
+    case val.val instanceof DecryptStream: {
+      return `${prefix(val)}DecryptStream${suffix(val)}`;
     }
     default:
       return `${prefix(val)}unknown${suffix(val)}`;

@@ -9,7 +9,6 @@ import { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { Ref } from "@pdfjs/core/primitives.js";
 import ObjectList from "@/components/app/ObjectList";
 import ObjectDetail from "@/components/app/ObjectDetail";
-import PdfView from "@/components/app/PdfView";
 import {
   loadAllObjects,
   loadRenderingDataForPage,
@@ -23,6 +22,7 @@ import DropZone from "@/components/app/DropZone";
 import favicon from "@assets/favicon.svg";
 import samplePDF from "@assets/test/sample-local-pdf.pdf";
 import { dirname } from "@/lib/utils";
+import { Viewer } from "@/components/app/Viewer";
 
 type PageEntry = {
   pageIndex: number;
@@ -79,7 +79,7 @@ function App() {
       manager.pdfDocument.checkHeader();
       manager.pdfDocument.parseStartXRef();
       manager.pdfDocument.parse();
-      const entries = loadAllObjects(manager.pdfDocument);
+      const entries = loadAllObjects(manager.pdfDocument, manager.localStream);
       const pageInfos = Promise.all(
         Array.from({ length: manager.pdfDocument.numPages }, (_, i) => i).map(
           async (pageIndex) => {
@@ -137,6 +137,7 @@ function App() {
   const currentObject = breadcrumb.length
     ? pdfState.objects.get(breadcrumb[breadcrumb.length - 1])
     : undefined;
+  console.log("Current object:", currentObject);
 
   return (
     <div className="h-screen w-full bg-gray-100">
@@ -164,6 +165,7 @@ function App() {
                 }}
                 onRefClick={(ref) => {
                   const entry = pdfState.objects.get(ref);
+                  console.log("Clicked ref:", ref, pdfState.objects, entry);
                   if (entry) {
                     setBreadcrumb([...breadcrumb, entry.ref]);
                   }
@@ -176,10 +178,10 @@ function App() {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white m-2 ml-0">
-          <PdfView
+          <Viewer
             objects={pdfState.objects}
             manager={pdfState.manager}
-            pageIndex={currentObject?.pageIndex}
+            currentObject={currentObject}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

@@ -229,6 +229,7 @@ class LocalPdfManager extends BasePdfManager {
     const stream = new Stream(args.source);
     this.pdfDocument = new PDFDocument(this, stream);
     this._loadedStreamPromise = Promise.resolve(stream);
+    this.localStream = stream;
   }
 
   /**

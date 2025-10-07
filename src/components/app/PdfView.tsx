@@ -139,20 +139,17 @@ export default function PdfView(props: {
   }, [props.manager, props.objects, props.pageIndex]);
 
   return (
-    <div className="p-4">
-      <h2 className="text-lg font-semibold mb-4">PDF View</h2>
-      <canvas
-        ref={canvasRef}
-        width={1200}
-        height={1600}
-        className="border-2 border-gray-300 drop-shadow-2xl"
-        style={{
-          width: "200%",
-          height: "auto",
-          transform: "scale(0.5)",
-          transformOrigin: "top left",
-        }}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      width={1200}
+      height={1600}
+      className="border-2 border-gray-300 drop-shadow-2xl"
+      style={{
+        width: "200%",
+        height: "auto",
+        transform: "scale(0.5)",
+        transformOrigin: "top left",
+      }}
+    />
   );
 }

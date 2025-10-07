@@ -7,6 +7,8 @@ import { CIRCULAR_REF, Dict, isRefsEqual, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 import { FontFaceObject, FontLoader } from "@pdfjs/display/font_loader";
 import { PDFObjects } from "@pdfjs/display/pdf_objects";
+import { bytesToString } from "@pdfjs/shared/util";
+import { start } from "repl";
 
 export const FONT_LOADER = new FontLoader({ ownerDocument: document });
 export const PDF_COMMON_OBJECTS = new PDFObjects();
@@ -35,14 +37,34 @@ export type ObjectEntry = {
   nameHint?: string;
   pageIndex?: number;
   backlinks?: Backlink[];
+  streamRange: { start: number; end: number };
 };
 
-export type ObjectMap = Map<Ref, ObjectEntry>;
-// export class ObjectMap {
-//   constructor() {
-
-//   }
-// }
+// export type ObjectMap = Map<Ref, ObjectEntry>;
+export class ObjectMap {
+  private map = new Map<string, ObjectEntry>();
+  constructor() {}
+  add(value: ObjectEntry) {
+    this.map.set(value.ref.toString(), value);
+  }
+  get(key: Ref): ObjectEntry | undefined {
+    return this.map.get(key.toString());
+  }
+  has(key: Ref): boolean {
+    return this.map.has(key.toString());
+  }
+  values(): IterableIterator<ObjectEntry> {
+    return this.map.values();
+  }
+  static fromObjectEntries(entries: ObjectEntry[]) {
+    const objMap = new ObjectMap();
+    entries.forEach((e) => objMap.add(e));
+    return objMap;
+  }
+  get size(): number {
+    return this.map.size;
+  }
+}
 
 export function findRefs(val: PDFVal, hint?: string) {
   const refs: { ref: Ref; hint?: string }[] = [];
@@ -87,7 +109,6 @@ export function populateAncestorPageIndex(
   const pageIndex = pagesArray.findIndex((pageRef) =>
     isRefsEqual(pageRef, target)
   );
-  console.log("found a page index for ", target);
   if (pageIndex != -1) {
     console.log("found page for dict");
     return (targetObject.pageIndex = pageIndex);
@@ -111,7 +132,25 @@ export function populateAncestorPageIndex(
   }
 }
 
-export function loadAllObjects(doc: PDFDocument): ObjectMap {
+// const gEndobjRegExp = /\b(endobj|\d+\s+\d+\s+obj|xref|trailer\s*<<)\b/g;
+function findEndOfObjPos(streamStr: string, startPos: number): number {
+  const gEndobjRegExp = /endobj/g;
+  gEndobjRegExp.lastIndex = startPos;
+  const match = gEndobjRegExp.exec(streamStr);
+  if (match) {
+    return gEndobjRegExp.lastIndex;
+  } else {
+    console.log("Couldn't find endobj", startPos, streamStr.length);
+    return streamStr.length;
+  }
+}
+
+export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
+  const buffer = stream.bytes;
+  console.log(buffer);
+  const bufferStr = bytesToString(buffer);
+
+  console.log(doc.xref.entries);
   const entries = Object.entries(doc.xref.entries)
     .slice(1)
     .map(([key, value]) => {
@@ -120,7 +159,17 @@ export function loadAllObjects(doc: PDFDocument): ObjectMap {
       if (val instanceof Stream || val instanceof FlateStream) {
         val.getBytes();
       }
-      return { ref, val, backlinks: [] } as ObjectEntry;
+      const start = value.offset;
+      const endOfObjPos = findEndOfObjPos(bufferStr, start);
+      return {
+        ref,
+        val,
+        backlinks: [],
+        streamRange: {
+          start: value.offset,
+          end: endOfObjPos,
+        },
+      } as ObjectEntry;
     }) as ObjectEntry[];
   const backlinksIndex = Object.fromEntries(
     entries.map((entry) => [entry.ref.toString(), findRefs(entry.val)])
@@ -150,7 +199,8 @@ export function loadAllObjects(doc: PDFDocument): ObjectMap {
       populateAncestorPageIndex(entry.ref, entries, pagesArray);
     });
   }
-  return new Map(entries.map((e) => [e.ref, e]));
+  console.log("loaded entries", entries);
+  return ObjectMap.fromObjectEntries(entries);
 }
 
 export async function loadRenderingDataForPage(

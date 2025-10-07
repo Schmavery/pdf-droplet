@@ -461,6 +461,7 @@ class XRef {
   }
 
   indexObjects() {
+    console.log("indexObjects");
     // Simple scan through the PDF content to find objects,
     // trailers and XRef streams.
     const TAB = 0x9,
@@ -613,6 +614,7 @@ class XRef {
         } else {
           contentLength = length - position;
         }
+
         const content = buffer.subarray(position, position + contentLength);
 
         // checking XRef stream suspect
