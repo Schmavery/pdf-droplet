@@ -33,7 +33,7 @@ export default function PdfView(props: {
       const viewport = new PageViewport({
         viewBox: page.view,
         userUnit: page.userUnit,
-        scale: 1,
+        scale: 2,
         rotation: 0,
         offsetX: 0,
         offsetY: 0,
@@ -43,8 +43,8 @@ export default function PdfView(props: {
       // Create canvas
       const canvasFactory = new DOMCanvasFactory({ ownerDocument: document });
       const { canvas, context } = canvasFactory.create(
-        viewport.width,
-        viewport.height
+        viewport.width * 2,
+        viewport.height * 2
       );
 
       // Create local caches
@@ -129,7 +129,7 @@ export default function PdfView(props: {
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext("2d");
         if (ctx) {
-          ctx.clearRect(0, 0, viewport.width, viewport.height);
+          ctx.clearRect(0, 0, viewport.width * 2, viewport.height * 2);
           ctx.drawImage(canvas, 0, 0);
         }
       }
@@ -143,9 +143,15 @@ export default function PdfView(props: {
       <h2 className="text-lg font-semibold mb-4">PDF View</h2>
       <canvas
         ref={canvasRef}
-        width={600}
-        height={800}
-        style={{ width: "100%", height: "auto", border: "1px solid #ccc" }}
+        width={1200}
+        height={1600}
+        className="border-2 border-gray-300 drop-shadow-2xl"
+        style={{
+          width: "200%",
+          height: "auto",
+          transform: "scale(0.5)",
+          transformOrigin: "top left",
+        }}
       />
     </div>
   );

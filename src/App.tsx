@@ -7,9 +7,9 @@ import {
 
 import { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { Ref } from "@pdfjs/core/primitives.js";
-import ObjectList from "@/ObjectList";
+import ObjectList from "@/components/app/ObjectList";
 import ObjectDetail from "@/components/app/ObjectDetail";
-import PdfView from "@/PdfView";
+import PdfView from "@/components/app/PdfView";
 import {
   loadAllObjects,
   loadRenderingDataForPage,
