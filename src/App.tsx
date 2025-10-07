@@ -21,7 +21,8 @@ import { DEFAULT_SORT, makeSortComparator } from "@/lib/objectUtils";
 import DropZone from "@/DropZone";
 
 import favicon from "@assets/favicon.svg";
-import samplePDF from "@assets/sample-local-pdf.pdf";
+import samplePDF from "@assets/test/sample-local-pdf.pdf";
+import { dirname } from "@/lib/utils";
 
 type PageEntry = {
   pageIndex: number;
@@ -40,15 +41,16 @@ function App() {
     | "loading"
   >();
 
-  const isDemo = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.has("demo");
-  }, []);
-
+  // Load demo
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isDemo = params.has("demo");
+    const urlFile = params.get("file");
+    const demoFile = urlFile ? dirname(samplePDF) + urlFile : samplePDF;
+    console.log(samplePDF);
     if (!isDemo) return;
     const controller = new AbortController();
-    fetch(samplePDF, { signal: controller.signal })
+    fetch(demoFile, { signal: controller.signal })
       .then((response) => response.arrayBuffer())
       .then((buffer) => {
         if (controller.signal.aborted) return;
@@ -61,7 +63,7 @@ function App() {
     return () => {
       controller.abort("unmount");
     };
-  }, [isDemo]);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
