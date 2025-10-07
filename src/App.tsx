@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -8,7 +8,7 @@ import {
 import { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { Ref } from "@pdfjs/core/primitives.js";
 import ObjectList from "@/ObjectList";
-import ObjectDetail from "@/ObjectDetail";
+import ObjectDetail from "@/components/app/ObjectDetail";
 import PdfView from "@/PdfView";
 import {
   loadAllObjects,
@@ -18,7 +18,7 @@ import {
 import { nanoid } from "nanoid";
 import type { OperatorList } from "@pdfjs/core/operator_list";
 import { DEFAULT_SORT, makeSortComparator } from "@/lib/objectUtils";
-import DropZone from "@/DropZone";
+import DropZone from "@/components/app/DropZone";
 
 import favicon from "@assets/favicon.svg";
 import samplePDF from "@assets/test/sample-local-pdf.pdf";

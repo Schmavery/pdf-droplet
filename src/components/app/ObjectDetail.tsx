@@ -8,7 +8,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { ObjectBreadcrumb } from "@/ObjectBreadcrumb";
+import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import type { Stream } from "@pdfjs/core/stream";
 
 function DictEntryRow({
