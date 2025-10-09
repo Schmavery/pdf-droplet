@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/collapsible";
 import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import type { Stream } from "@pdfjs/core/stream";
+import { getObjectType } from "@/lib/objectUtils";
+import ObjectStmRefs from "@/components/app/ObjectStmRefs";
 
 function DictEntryRow({
   keyLabel,
@@ -212,12 +214,35 @@ export default function ObjectDetail(props: {
     val.getBytes();
   }
   console.log("Rendering ObjectDetail for object:", props.object);
+
+  const objStmNum = props.object?.fromObjStm;
+
   return (
     <div className="p-2 border-l border-gray-200 h-full overflow-auto">
       <ObjectBreadcrumb
         path={props.breadcrumb}
         onNavigate={props.onBreadcrumbNavigate}
       />
+      {objStmNum && (
+        <div className="mb-2">
+          Extracted from ObjStm&nbsp;
+          <button
+            type="button"
+            style={{
+              color: "#007bff",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textDecoration: "underline",
+              fontFamily: "monospace",
+              fontSize: 14,
+            }}
+            onClick={() => props.onRefClick(objStmNum)}
+          >
+            {objStmNum.toString()}
+          </button>
+        </div>
+      )}
       {props.object && (
         <div>
           {val instanceof Dict && (
@@ -277,6 +302,14 @@ export default function ObjectDetail(props: {
               onRefClick={props.onRefClick}
             />
           )}
+          {/* TODO: For a ObjStm, show the contained objects */}
+          {
+            <ObjectStmRefs
+              objStm={props.object.ref}
+              objects={props.objects}
+              onRefClick={props.onRefClick}
+            />
+          }
         </div>
       )}
     </div>

@@ -36,7 +36,6 @@ export const ObjectBreadcrumb: React.FC<ObjectBreadcrumbProps> = ({
                       padding: 0,
                     }}
                     onClick={() => onNavigate(idx)}
-                    aria-current={idx === path.length - 1 ? "page" : undefined}
                   >
                     {entry.toString()}
                   </button>

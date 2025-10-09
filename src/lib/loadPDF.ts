@@ -1,4 +1,4 @@
-import type { BaseStream } from "@pdfjs/core/base_stream";
+import { BaseStream } from "@pdfjs/core/base_stream";
 import { RESOURCES_KEYS_OPERATOR_LIST } from "@pdfjs/core/core_utils";
 import type { Page, PDFDocument } from "@pdfjs/core/document";
 import { FlateStream } from "@pdfjs/core/flate_stream";
@@ -34,6 +34,7 @@ export type Backlink = {
 export type ObjectEntry = {
   ref: Ref;
   val: PDFVal;
+  fromObjStm?: Ref;
   nameHint?: string;
   pageIndex?: number;
   backlinks?: Backlink[];
@@ -154,17 +155,33 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
   const entries = Object.entries(doc.xref.entries)
     .slice(1)
     .map(([key, value]) => {
-      const ref = new Ref(parseInt(key), value.gen);
+      const refNum = parseInt(key);
+      const xrefEntry = doc.xref.getEntry(refNum);
+      // TODO is this OK??
+      // PDFjs uses incremental generations on entries that are compressed
+      const ref = new Ref(refNum, xrefEntry?.uncompressed ? value.gen : 0);
       const val = doc.xref.fetch(ref);
       if (val instanceof Stream || val instanceof FlateStream) {
         val.getBytes();
       }
+
+      if (xrefEntry && !xrefEntry.uncompressed) {
+        const tableOffset = xrefEntry.offset;
+        const stream = doc.xref.fetch(Ref.get(tableOffset, 0));
+        if (stream instanceof BaseStream) {
+        }
+      }
+
       const start = value.offset;
       const endOfObjPos = findEndOfObjPos(bufferStr, start);
       return {
         ref,
         val,
         backlinks: [],
+        fromObjStm:
+          xrefEntry && !xrefEntry.uncompressed
+            ? Ref.get(xrefEntry.offset, 0)
+            : undefined,
         streamRange: {
           start: value.offset,
           end: endOfObjPos,

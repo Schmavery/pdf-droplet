@@ -1,4 +1,5 @@
 import type { ObjectEntry } from "@/lib/loadPDF";
+import { BaseStream } from "@pdfjs/core/base_stream";
 import { DecryptStream } from "@pdfjs/core/decrypt_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
@@ -84,32 +85,24 @@ export function getObjectType(val: ObjectEntry): string {
     case val.val instanceof Dict: {
       const name = val.val.get("Type");
       if (name) {
-        return `${prefix(val)}${name}`;
+        return `${prefix(val)}${name}${suffix(val)}`;
       }
       return `${prefix(val)}Dict` + `${suffix(val)}`;
     }
-    case val.val instanceof Stream: {
-      const name = val.val.dict.get("Type");
-      if (name) {
-        return `${prefix(val)}${name}`;
+    case val.val instanceof BaseStream: {
+      if ("dict" in val.val) {
+        const dictVal = val.val.dict as Dict | undefined;
+        const name = dictVal?.get("Type");
+        if (name) {
+          return `${prefix(val)}${name}`;
+        }
       }
-      return `${prefix(val)}Stream${suffix(val)}`;
-    }
-    case val.val instanceof FlateStream: {
-      const name = val.val.dict.get("Type");
-      if (name) {
-        return `${prefix(val)}${name}`;
-      }
-      return `${prefix(val)}FlateStream${suffix(val)}`;
-    }
-    case val.val instanceof DecryptStream: {
-      const name = val.val.dict.get("Type");
-      if (name) {
-        return `${prefix(val)}${name}`;
-      }
-      return `${prefix(val)}DecryptStream${suffix(val)}`;
+      return `${prefix(val)}${val.val.constructor.name ?? "Stream"}${suffix(
+        val
+      )}`;
     }
     default:
+      console.warn("Unknown object type", val);
       return `${prefix(val)}unknown${suffix(val)}`;
   }
 }

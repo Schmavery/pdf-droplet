@@ -15,7 +15,7 @@ import {
   DropdownMenuPortal,
 } from "@radix-ui/react-dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown, Ghost } from "lucide-react";
 import { DropdownMenuSortItem } from "@/components/ui/dropdown-menu";
 import { useEffect, useRef, useState } from "react";
 
@@ -31,13 +31,21 @@ function ListItem(props: {
         aria-selected={props.selected}
         onClick={props.onClick}
         className={
-          "rounded border border-solid border-gray-200 p-2 hover:bg-gray-50 aria-selected:bg-blue-200 w-full flex justify-between"
+          "rounded border border-solid border-gray-200 p-2 hover:bg-gray-50 aria-selected:bg-blue-200 w-full flex justify-between items-center"
         }
       >
-        <span>
+        <div>
           {props.entry.ref.toString()} - {getObjectType(props.entry)}
-        </span>
-        <span>{getObjectSizeString(props.entry)}</span>
+        </div>
+        {props.entry.fromObjStm && (
+          <div className="ml-auto">
+            <Ghost className="inline" size={"20"} color="gray" />
+          </div>
+        )}
+        {/* TODO: maybe determine the actual size */}
+        {!props.entry.fromObjStm && (
+          <div>{getObjectSizeString(props.entry)}</div>
+        )}
       </button>
     </li>
   );
