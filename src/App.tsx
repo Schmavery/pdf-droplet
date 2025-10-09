@@ -9,11 +9,7 @@ import { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { Ref } from "@pdfjs/core/primitives.js";
 import ObjectList from "@/components/app/ObjectList";
 import ObjectDetail from "@/components/app/ObjectDetail";
-import {
-  loadAllObjects,
-  loadRenderingDataForPage,
-  type ObjectMap,
-} from "@/lib/loadPDF";
+import { loadAllObjects, type ObjectMap } from "@/lib/loadPDF";
 import { nanoid } from "nanoid";
 import { OperatorList } from "@pdfjs/core/operator_list";
 import { DEFAULT_SORT, makeSortComparator } from "@/lib/objectUtils";
@@ -192,6 +188,11 @@ function App() {
             objects={pdfState.objects}
             manager={pdfState.manager}
             currentObject={currentObject}
+            clearCurrentUpload={() => {
+              setFile(undefined);
+              setPdfState(undefined);
+              setBreadcrumb([]);
+            }}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

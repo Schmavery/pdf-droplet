@@ -5,32 +5,23 @@ import {
   type ObjectMap,
 } from "@/lib/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { DOMCanvasFactory } from "@pdfjs/display/canvas_factory.js";
-import type { Page } from "@pdfjs/core/document";
-import { PDFObjects } from "@pdfjs/display/pdf_objects.js";
+import type { Page, PDFDocument } from "@pdfjs/core/document";
 import { CanvasGraphics } from "@pdfjs/display/canvas.js";
 import { PageViewport } from "@pdfjs/display/display_utils";
+import { createResource, type SuspenseResource } from "@/lib/utils";
 
-export default function PdfView(props: {
-  manager?: LocalPdfManager;
+function PdfViewForPage(props: {
+  doc: PDFDocument;
   objects: ObjectMap;
-  pageIndex?: number;
+  page: SuspenseResource<Page>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const abort = new AbortController();
-    const render = async () => {
-      if (!props.manager) return;
-      const pdfDoc = props.manager.pdfDocument;
-      if (!pdfDoc) return;
-      const page: Page = await pdfDoc.getPage(props.pageIndex ?? 0);
-      if (abort.signal.aborted) {
-        return;
-      }
-
-      const viewport = new PageViewport({
+  const page = props.page.read();
+  const viewport = useMemo(
+    () =>
+      new PageViewport({
         viewBox: page.view,
         userUnit: page.userUnit,
         scale: 2,
@@ -38,40 +29,38 @@ export default function PdfView(props: {
         offsetX: 0,
         offsetY: 0,
         dontFlip: false,
-      });
+      }),
+    [page]
+  );
 
+  useEffect(() => {
+    const abort = new AbortController();
+    const render = async () => {
+      if (canvasRef.current == null) return;
       // Create canvas
-      const canvasFactory = new DOMCanvasFactory({ ownerDocument: document });
-      const { canvas, context } = canvasFactory.create(
-        viewport.width * 2,
-        viewport.height * 2
-      );
+      // const canvasFactory = new DOMCanvasFactory({ ownerDocument: document });
+      // const { canvas, context } = canvasFactory.create(
+      //   viewport.width * 2,
+      //   viewport.height * 2
+      // );
 
-      // Create local caches
-      // const objs = new PDFObjects();
-      // const commonObjs = new PDFObjects();
-
-      console.log("Resources:", page.resources.get("Font"));
+      const context = canvasRef.current.getContext("2d");
 
       const opList = await loadRenderingDataForPage(
-        pdfDoc,
-        props.pageIndex ?? 0
+        props.doc,
+        page.pageIndex ?? 0
       );
 
       if (abort.signal.aborted) {
         return;
       }
 
-      // console.log("Operator List:", opList);
-      console.log("Common Objects:", PDF_COMMON_OBJECTS);
-      console.log("PDF Objs:", PDF_OBJS);
-
       // Use CanvasGraphics to render
       const gfx = new CanvasGraphics(
         context,
         PDF_COMMON_OBJECTS,
         PDF_OBJS,
-        canvasFactory,
+        new DOMCanvasFactory({ ownerDocument: document }),
         null,
         { optionalContentConfig: {} },
         undefined,
@@ -88,23 +77,23 @@ export default function PdfView(props: {
       gfx.endDrawing();
 
       // Copy to ref
-      if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext("2d");
-        if (ctx) {
-          ctx.clearRect(0, 0, viewport.width * 2, viewport.height * 2);
-          ctx.drawImage(canvas, 0, 0);
-        }
-      }
+      // if (canvasRef.current) {
+      //   const ctx = canvasRef.current.getContext("2d");
+      //   if (ctx) {
+      //     ctx.clearRect(0, 0, viewport.width * 2, viewport.height * 2);
+      //     ctx.drawImage(canvas, 0, 0);
+      //   }
+      // }
     };
     render();
     return () => abort.abort();
-  }, [props.manager, props.objects, props.pageIndex]);
+  }, [props.doc, page, viewport]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={1200}
-      height={1600}
+      width={viewport.width}
+      height={viewport.height}
       className="border-2 border-gray-300 drop-shadow-2xl"
       style={{
         width: "200%",
@@ -113,5 +102,24 @@ export default function PdfView(props: {
         transformOrigin: "top left",
       }}
     />
+  );
+}
+
+export default function PdfView(props: {
+  manager?: LocalPdfManager;
+  objects: ObjectMap;
+  pageIndex?: number;
+}) {
+  const doc = props.manager?.pdfDocument;
+  if (!doc) return <div>No document loaded</div>;
+
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PdfViewForPage
+        doc={doc}
+        objects={props.objects}
+        page={createResource(doc.getPage(props.pageIndex ?? 0))}
+      />
+    </Suspense>
   );
 }
