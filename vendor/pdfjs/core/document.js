@@ -132,7 +132,7 @@ class Page {
 
   /**
    * @param {{
-   *   send: (messagetype: string, args: [string, string, object]) => void,
+   *   send: (messagetype: string, args: unknown) => void,
    *   [key: string]: any
    * }} handler - Message handler for worker communication, must implement send(type, data)
    * @returns {PartialEvaluator}

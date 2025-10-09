@@ -1,14 +1,15 @@
-import { FONT_LOADER, PDF_COMMON_OBJECTS, type ObjectMap } from "@/lib/loadPDF";
+import {
+  loadRenderingDataForPage,
+  PDF_COMMON_OBJECTS,
+  PDF_OBJS,
+  type ObjectMap,
+} from "@/lib/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { useEffect, useRef } from "react";
 import { DOMCanvasFactory } from "@pdfjs/display/canvas_factory.js";
 import type { Page } from "@pdfjs/core/document";
 import { PDFObjects } from "@pdfjs/display/pdf_objects.js";
-import { OperatorList } from "@pdfjs/core/operator_list";
 import { CanvasGraphics } from "@pdfjs/display/canvas.js";
-import { RESOURCES_KEYS_OPERATOR_LIST } from "@pdfjs/core/core_utils";
-import type { Stream } from "@pdfjs/core/stream";
-import { FontFaceObject } from "@pdfjs/display/font_loader";
 import { PageViewport } from "@pdfjs/display/display_utils";
 
 export default function PdfView(props: {
@@ -28,7 +29,6 @@ export default function PdfView(props: {
       if (abort.signal.aborted) {
         return;
       }
-      page.loadResources(RESOURCES_KEYS_OPERATOR_LIST);
 
       const viewport = new PageViewport({
         viewBox: page.view,
@@ -48,67 +48,29 @@ export default function PdfView(props: {
       );
 
       // Create local caches
-      const objs = new PDFObjects();
+      // const objs = new PDFObjects();
       // const commonObjs = new PDFObjects();
 
       console.log("Resources:", page.resources.get("Font"));
 
-      // Directly call partialEvaluator.getOperatorList
-      const partialEvaluator = page.createPartialEvaluator({
-        // See vendor/pdfjs/display/api.js
-        send: (handler, [id, type, data]) => {
-          console.log(
-            `Received exported data for id: ${id}, type: ${type}`,
-            data
-          );
-          if (handler == "commonobj") {
-            if ("error" in data) {
-              const exportedError = data.error;
-              console.warn(`Error during font loading: ${exportedError}`);
-              PDF_COMMON_OBJECTS.resolve(id, exportedError);
-              return;
-            }
-            if (type === "Font") {
-              // @ts-expect-error need to do this
-              data.disableFontFace = false;
-              // @ts-expect-error need to do this
-              data.fontExtraProperties = false;
-              const font = new FontFaceObject(data);
-              console.log("FontFaceObject created:", font);
-              FONT_LOADER.bind(font).finally(() => {
-                console.log(`Font loaded and resolved for id: ${id}`, font);
-                PDF_COMMON_OBJECTS.resolve(id, font);
-              });
-            }
-          }
-        },
-      });
-      const contentStream = await page.getContentStream();
-      if (abort.signal.aborted) {
-        return;
-      }
-      const opList = new OperatorList();
-      await partialEvaluator.getOperatorList({
-        stream: contentStream,
-        task: { ensureNotTerminated() {} },
-        resources: await page.getMergedResources(
-          ((await page.getContentStream()) as unknown as Stream).dict,
-          RESOURCES_KEYS_OPERATOR_LIST
-        ),
-        operatorList: opList,
-      });
+      const opList = await loadRenderingDataForPage(
+        pdfDoc,
+        props.pageIndex ?? 0
+      );
+
       if (abort.signal.aborted) {
         return;
       }
 
-      console.log("Operator List:", opList);
+      // console.log("Operator List:", opList);
       console.log("Common Objects:", PDF_COMMON_OBJECTS);
+      console.log("PDF Objs:", PDF_OBJS);
 
       // Use CanvasGraphics to render
       const gfx = new CanvasGraphics(
         context,
         PDF_COMMON_OBJECTS,
-        objs,
+        PDF_OBJS,
         canvasFactory,
         null,
         { optionalContentConfig: {} },

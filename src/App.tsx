@@ -15,14 +15,19 @@ import {
   type ObjectMap,
 } from "@/lib/loadPDF";
 import { nanoid } from "nanoid";
-import type { OperatorList } from "@pdfjs/core/operator_list";
+import { OperatorList } from "@pdfjs/core/operator_list";
 import { DEFAULT_SORT, makeSortComparator } from "@/lib/objectUtils";
 import DropZone from "@/components/app/DropZone";
 
 import favicon from "@assets/favicon.svg";
-import samplePDF from "@assets/test/sample-local-pdf.pdf";
-import { dirname } from "@/lib/utils";
 import { Viewer } from "@/components/app/Viewer";
+
+const TEST_FILES: [string, string][] = Object.entries(
+  import.meta.glob("@assets/test/*.pdf", {
+    eager: true,
+    import: "default",
+  })
+);
 
 type PageEntry = {
   pageIndex: number;
@@ -40,15 +45,19 @@ function App() {
       }
     | "loading"
   >();
-
   // Load demo
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const isDemo = params.has("demo");
-    const urlFile = params.get("file");
-    const demoFile = urlFile ? dirname(samplePDF) + urlFile : samplePDF;
-    console.log(samplePDF);
     if (!isDemo) return;
+    const urlFile = params.get("file") ?? "sample-local-pdf.pdf";
+    const demoFile =
+      urlFile && TEST_FILES.find(([k]) => k.includes(urlFile))?.[1];
+    if (!demoFile) {
+      console.log(TEST_FILES);
+      console.warn("Demo file not found:", urlFile);
+      return;
+    }
     const controller = new AbortController();
     fetch(demoFile, { signal: controller.signal })
       .then((response) => response.arrayBuffer())
@@ -85,10 +94,11 @@ function App() {
           async (pageIndex) => {
             return {
               pageIndex,
-              operatorList: await loadRenderingDataForPage(
-                manager.pdfDocument,
-                pageIndex
-              ),
+              // operatorList: await loadRenderingDataForPage(
+              //   manager.pdfDocument,
+              //   pageIndex
+              // ),
+              operatorList: new OperatorList(),
             };
           }
         )

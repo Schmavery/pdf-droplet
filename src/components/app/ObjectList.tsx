@@ -132,7 +132,7 @@ export default function ObjectList(props: {
   return (
     <div className=" h-full w-full flex flex-col">
       <div className="shadow-[0_4px_2px_-2px] shadow-gray-200 py-1 px-2 flex justify-between">
-        <div>Objects</div>
+        <div>Objects ({props.objects.size})</div>
         <div>
           <SortDropdown value={sort} setValue={setSort} />
         </div>

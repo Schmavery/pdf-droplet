@@ -89,12 +89,24 @@ export function getObjectType(val: ObjectEntry): string {
       return `${prefix(val)}Dict` + `${suffix(val)}`;
     }
     case val.val instanceof Stream: {
+      const name = val.val.dict.get("Type");
+      if (name) {
+        return `${prefix(val)}${name}`;
+      }
       return `${prefix(val)}Stream${suffix(val)}`;
     }
     case val.val instanceof FlateStream: {
+      const name = val.val.dict.get("Type");
+      if (name) {
+        return `${prefix(val)}${name}`;
+      }
       return `${prefix(val)}FlateStream${suffix(val)}`;
     }
     case val.val instanceof DecryptStream: {
+      const name = val.val.dict.get("Type");
+      if (name) {
+        return `${prefix(val)}${name}`;
+      }
       return `${prefix(val)}DecryptStream${suffix(val)}`;
     }
     default:

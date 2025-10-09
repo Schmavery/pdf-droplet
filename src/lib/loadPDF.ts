@@ -11,6 +11,7 @@ import { bytesToString } from "@pdfjs/shared/util";
 
 export const FONT_LOADER = new FontLoader({ ownerDocument: document });
 export const PDF_COMMON_OBJECTS = new PDFObjects();
+export const PDF_OBJS = new PDFObjects();
 
 export type PDFVal =
   | Dict
@@ -212,26 +213,67 @@ export async function loadRenderingDataForPage(
   // Directly call partialEvaluator.getOperatorList
   const partialEvaluator = page.createPartialEvaluator({
     // See vendor/pdfjs/display/api.js
-    send: (handler, [id, type, data]) => {
-      console.log(`Received exported data for id: ${id}, type: ${type}`, data);
+    send: (handler, ...args) => {
+      console.log(`Received exported data for send("${handler}")'`, args);
       if (handler == "commonobj") {
+        const [id, type, data] = args[0] as [string, string, object];
         if ("error" in data) {
           const exportedError = data.error;
           console.warn(`Error during font loading: ${exportedError}`);
           PDF_COMMON_OBJECTS.resolve(id, exportedError);
           return;
         }
-        if (type === "Font") {
-          // @ts-expect-error need to do this for some reason
-          data.disableFontFace = false;
-          // @ts-expect-error need to do this for some reason
-          data.fontExtraProperties = false;
-          const font = new FontFaceObject(data);
-          console.log("FontFaceObject created:", font);
-          FONT_LOADER.bind(font).finally(() => {
-            console.log(`Font loaded and resolved for id: ${id}`, font);
-            PDF_COMMON_OBJECTS.resolve(id, font);
-          });
+        switch (type) {
+          case "Font": {
+            // @ts-expect-error need to do this for some reason
+            data.disableFontFace = false;
+            // @ts-expect-error need to do this for some reason
+            data.fontExtraProperties = false;
+            const font = new FontFaceObject(data);
+            FONT_LOADER.bind(font).finally(() => {
+              PDF_COMMON_OBJECTS.resolve(id, font);
+            });
+            break;
+          }
+          case "FontPath":
+          case "Image":
+          case "Pattern":
+            PDF_COMMON_OBJECTS.resolve(id, data);
+            break;
+          default:
+            throw new Error(`Got unknown common object type ${type}`);
+        }
+      } else if (handler == "obj") {
+        const [id, , type, data] = args[0] as [string, number, string, object];
+        if (PDF_OBJS.has(id)) return;
+        switch (type) {
+          case "Image":
+          case "Pattern":
+            PDF_OBJS.resolve(id, data);
+            break;
+          default:
+            throw new Error(`Got unknown object type ${type}`);
+        }
+      }
+    },
+    sendWithPromise: (handler, [id, type, data]) => {
+      if (handler === "commonobj") {
+        if (type === "CopyLocalImage") {
+          console.log("CopyLocalImage called:", id, type, data);
+          return null;
+          // for (const page of doc.#pageCache.values()) {
+          //   // for (const pageProxy of this.#pageCache.values()) {
+          //   for (const [, data] of pageProxy.objs) {
+          //     if (data?.ref !== imageRef) {
+          //       continue;
+          //     }
+          //     if (!data.dataLen) {
+          //       return null;
+          //     }
+          //     PDF_COMMON_OBJECTS.resolve(id, structuredClone(data));
+          //     return data.dataLen;
+          //   }
+          // }
         }
       }
     },
