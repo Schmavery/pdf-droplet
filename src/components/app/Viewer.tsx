@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
 import { HexView } from "@/components/app/HexViewVirt";
 import { Button } from "@/components/ui/button";
 import { FlateStream } from "@pdfjs/core/flate_stream";
+import { useMemo } from "react";
 
 export function Viewer(props: {
   manager?: LocalPdfManager;
@@ -12,13 +13,20 @@ export function Viewer(props: {
   currentObject?: ObjectEntry;
   clearCurrentUpload: () => void;
 }) {
-  let bytes = props.manager?.localStream?.bytes;
-  if (props.currentObject && props.currentObject.fromObjStm) {
-    const objstm = props.objects.get(props.currentObject.fromObjStm);
-    if (objstm && objstm.val instanceof FlateStream) {
-      bytes = objstm.val.buffer;
+  const bytes = useMemo(() => {
+    if (props.currentObject?.fromObjStm) {
+      const objstm = props.objects.get(props.currentObject.fromObjStm);
+      if (objstm && objstm.val instanceof FlateStream) {
+        return objstm.val.buffer.slice(0, objstm.val.bufferLength);
+      }
     }
-  }
+    return props.manager?.localStream?.bytes;
+  }, [
+    props.currentObject?.fromObjStm,
+    props.manager?.localStream?.bytes,
+    props.objects,
+  ]);
+
   return (
     <Tabs defaultValue="pdf" className="p-4 h-full">
       <div className="flex items-center">

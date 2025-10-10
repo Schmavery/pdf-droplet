@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/collapsible";
 import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import type { Stream } from "@pdfjs/core/stream";
-import { getObjectType } from "@/lib/objectUtils";
 import ObjectStmRefs from "@/components/app/ObjectStmRefs";
 
 function DictEntryRow({

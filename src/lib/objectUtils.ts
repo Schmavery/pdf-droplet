@@ -1,9 +1,6 @@
 import type { ObjectEntry } from "@/lib/loadPDF";
 import { BaseStream } from "@pdfjs/core/base_stream";
-import { DecryptStream } from "@pdfjs/core/decrypt_stream";
-import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
-import { Stream } from "@pdfjs/core/stream";
 
 const NUMBER_CHARS = [..."❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴"];
 

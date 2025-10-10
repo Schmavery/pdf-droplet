@@ -203,7 +203,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
       )?.val;
       if (objstm instanceof FlateStream && objstm.dict instanceof Dict) {
         const dict = objstm.dict;
-        const bytes = objstm.buffer;
+        const bytes = objstm.buffer.slice(0, objstm.bufferLength);
         const first = dict.get("First");
         const entriesByteStr = bytesToString(bytes.slice(0, first));
         // Read pairs of [object number, offset] from bytesStr
@@ -229,6 +229,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
       }
     }
   });
+
   entries.forEach((entry) => {
     if (entry.fromObjStm) {
       const objstmInfo = objStmIndex.get(entry.fromObjStm.num);
@@ -339,7 +340,8 @@ export async function loadRenderingDataForPage(
         }
       }
     },
-    sendWithPromise: (handler, [id, type, data]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sendWithPromise: (handler: string, [id, type, data]: any) => {
       if (handler === "commonobj") {
         if (type === "CopyLocalImage") {
           console.log("CopyLocalImage called:", id, type, data);
