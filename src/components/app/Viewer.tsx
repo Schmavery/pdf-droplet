@@ -4,6 +4,7 @@ import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
 import { HexView } from "@/components/app/HexViewVirt";
 import { Button } from "@/components/ui/button";
+import { FlateStream } from "@pdfjs/core/flate_stream";
 
 export function Viewer(props: {
   manager?: LocalPdfManager;
@@ -11,6 +12,13 @@ export function Viewer(props: {
   currentObject?: ObjectEntry;
   clearCurrentUpload: () => void;
 }) {
+  let bytes = props.manager?.localStream?.bytes;
+  if (props.currentObject && props.currentObject.fromObjStm) {
+    const objstm = props.objects.get(props.currentObject.fromObjStm);
+    if (objstm && objstm.val instanceof FlateStream) {
+      bytes = objstm.val.buffer;
+    }
+  }
   return (
     <Tabs defaultValue="pdf" className="p-4 h-full">
       <div className="flex items-center">
@@ -32,9 +40,9 @@ export function Viewer(props: {
         />
       </TabsContent>
       <TabsContent value="hex">
-        {props.manager?.localStream && (
+        {bytes && (
           <HexView
-            data={props.manager.localStream.bytes}
+            data={bytes}
             highlights={
               props.currentObject
                 ? [

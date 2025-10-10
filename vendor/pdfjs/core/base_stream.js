@@ -43,6 +43,11 @@ class BaseStream {
     unreachable("Abstract method `getByte` called");
   }
 
+  /**
+   *
+   * @param {number} [length]
+   * @returns {Uint8Array<ArrayBuffer>}
+   */
   getBytes(length) {
     unreachable("Abstract method `getBytes` called");
   }

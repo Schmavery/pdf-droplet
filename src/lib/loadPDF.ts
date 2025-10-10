@@ -104,7 +104,6 @@ export function populateAncestorPageIndex(
     return;
   }
   if (targetObject.pageIndex !== undefined) {
-    console.log(".....");
     return;
   }
   const pageIndex = pagesArray.findIndex((pageRef) =>
@@ -165,15 +164,13 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
         val.getBytes();
       }
 
-      if (xrefEntry && !xrefEntry.uncompressed) {
-        const tableOffset = xrefEntry.offset;
-        const stream = doc.xref.fetch(Ref.get(tableOffset, 0));
-        if (stream instanceof BaseStream) {
-        }
-      }
-
       const start = value.offset;
-      const endOfObjPos = findEndOfObjPos(bufferStr, start);
+      let end = start;
+      if (xrefEntry && !xrefEntry.uncompressed) {
+        end = start + 10;
+      } else {
+        end = findEndOfObjPos(bufferStr, start);
+      }
       return {
         ref,
         val,
@@ -184,10 +181,75 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
             : undefined,
         streamRange: {
           start: value.offset,
-          end: endOfObjPos,
+          end: end,
         },
       } as ObjectEntry;
     }) as ObjectEntry[];
+
+  // Fix ranges for objects embedded in ObjStms
+  const objStmIndex = new Map<
+    number,
+    {
+      first: number;
+      entries: { num: number; offset: number; endPos: number }[];
+    }
+  >();
+
+  entries.forEach((entry) => {
+    if (entry.fromObjStm && !objStmIndex.has(entry.fromObjStm.num)) {
+      // const objstm = doc.xref.fetch(entry.fromObjStm);
+      const objstm = entries.find((e) =>
+        isRefsEqual(e.ref, entry.fromObjStm!)
+      )?.val;
+      if (objstm instanceof FlateStream && objstm.dict instanceof Dict) {
+        const dict = objstm.dict;
+        const bytes = objstm.buffer;
+        const first = dict.get("First");
+        const entriesByteStr = bytesToString(bytes.slice(0, first));
+        // Read pairs of [object number, offset] from bytesStr
+        const parts = entriesByteStr.trim().split(/\s+/);
+        const entries: { num: number; offset: number }[] = [];
+        for (let i = 0; i < parts.length; i += 2) {
+          const num = parseInt(parts[i]);
+          const offset = parseInt(parts[i + 1]);
+          entries.push({ num, offset });
+        }
+        const entriesWithEnd = entries.map((e, i) => ({
+          ...e,
+          endPos:
+            i < entries.length - 1
+              ? entries[i + 1].offset
+              : bytes.length - first,
+        }));
+
+        objStmIndex.set(entry.fromObjStm.num, {
+          first,
+          entries: entriesWithEnd,
+        });
+      }
+    }
+  });
+  entries.forEach((entry) => {
+    if (entry.fromObjStm) {
+      const objstmInfo = objStmIndex.get(entry.fromObjStm.num);
+      if (objstmInfo) {
+        const objEntry = objstmInfo.entries.find(
+          (e) => e.num === entry.ref.num
+        );
+        if (!objEntry) {
+          console.warn(
+            "Couldn't find obj entry in objstm for",
+            entry.ref,
+            entry.fromObjStm
+          );
+        }
+        entry.streamRange.start = objstmInfo.first + (objEntry?.offset ?? 0);
+        entry.streamRange.end = objstmInfo.first + (objEntry?.endPos ?? 0);
+      }
+    }
+  });
+
+  // Set up backlinks
   const backlinksIndex = Object.fromEntries(
     entries.map((entry) => [entry.ref.toString(), findRefs(entry.val)])
   );
@@ -198,6 +260,8 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
       return match ? { ref: e.ref, hint: match.hint } : [];
     });
   });
+
+  // Find and name the Info dictionary if present
   const infoRef = doc.xref.trailer?.getRaw("Info") as Ref | undefined;
   if (infoRef) {
     entries.forEach((e) => {
@@ -207,6 +271,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
     });
   }
 
+  // Populate pageIndex for all objects that are or are contained in a page
   const pagesArray = doc.catalog?.toplevelPagesDict?.get("Kids") as
     | Ref[]
     | undefined;
@@ -216,6 +281,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
       populateAncestorPageIndex(entry.ref, entries, pagesArray);
     });
   }
+
   console.log("loaded entries", entries);
   return ObjectMap.fromObjectEntries(entries);
 }

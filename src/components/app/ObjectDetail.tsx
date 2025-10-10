@@ -219,30 +219,32 @@ export default function ObjectDetail(props: {
 
   return (
     <div className="p-2 border-l border-gray-200 h-full overflow-auto">
-      <ObjectBreadcrumb
-        path={props.breadcrumb}
-        onNavigate={props.onBreadcrumbNavigate}
-      />
-      {objStmNum && (
-        <div className="mb-2">
-          Extracted from ObjStm&nbsp;
-          <button
-            type="button"
-            style={{
-              color: "#007bff",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              textDecoration: "underline",
-              fontFamily: "monospace",
-              fontSize: 14,
-            }}
-            onClick={() => props.onRefClick(objStmNum)}
-          >
-            {objStmNum.toString()}
-          </button>
-        </div>
-      )}
+      <div className="mb-4">
+        <ObjectBreadcrumb
+          path={props.breadcrumb}
+          onNavigate={props.onBreadcrumbNavigate}
+        />
+        {objStmNum && (
+          <div className="text-muted-foreground text-sm">
+            Extracted from ObjStm&nbsp;
+            <button
+              type="button"
+              style={{
+                color: "#007bff",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                textDecoration: "underline",
+                fontFamily: "monospace",
+                fontSize: 14,
+              }}
+              onClick={() => props.onRefClick(objStmNum)}
+            >
+              {objStmNum.toString()}
+            </button>
+          </div>
+        )}
+      </div>
       {props.object && (
         <div>
           {val instanceof Dict && (
