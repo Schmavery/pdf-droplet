@@ -11,6 +11,7 @@ import {
 import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import type { Stream } from "@pdfjs/core/stream";
 import ObjectStmRefs from "@/components/app/ObjectStmRefs";
+import ContentStreamView from "@/components/app/ContentStreamView";
 
 function DictEntryRow({
   keyLabel,
@@ -282,9 +283,7 @@ export default function ObjectDetail(props: {
             />
           )}
           {val && val instanceof FlateStream && (
-            <pre className="bg-gray-100 p-2 rounded mt-2 overflow-x-auto">
-              {new TextDecoder("utf-8").decode(val.buffer)}
-            </pre>
+            <ContentStreamView contentStream={val.buffer} />
           )}
           {/* Fallback for other primitives */}
           {!(val instanceof Dict) &&
