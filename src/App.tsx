@@ -23,7 +23,7 @@ const TEST_FILES: [string, string][] = Object.entries(
   import.meta.glob("@assets/test/*.pdf", {
     eager: true,
     import: "default",
-  })
+  }),
 );
 
 type PageEntry = {
@@ -51,7 +51,7 @@ function AppWithLoadedFile(props: {
   const doc = props.pdfState.manager!.pdfDocument;
   const pageResource = useMemo(
     () => doc && createResource(doc.getPage(currentObject?.pageIndex ?? 0)),
-    [doc, currentObject?.pageIndex]
+    [doc, currentObject?.pageIndex],
   );
 
   const {
@@ -67,7 +67,7 @@ function AppWithLoadedFile(props: {
         setBreadcrumb([...breadcrumb, entry.ref]);
       }
     },
-    [objects, breadcrumb, setBreadcrumb]
+    [objects, breadcrumb, setBreadcrumb],
   );
 
   return (
@@ -178,8 +178,8 @@ function App() {
               // ),
               operatorList: new OperatorList(),
             };
-          }
-        )
+          },
+        ),
       );
       setPdfState({ manager, pages: await pageInfos, objects: entries });
 
@@ -202,6 +202,12 @@ function App() {
             <img src={favicon} className="h-8" /> PDF Droplet
           </h1>
           <DropZone setFile={async (f) => setFile(await f.arrayBuffer())} />
+          <span className="mt-2 ml-1">
+            Or try a
+            <a href="/?demo" target="_blank" className="text-blue-600 ml-1">
+              demo
+            </a>
+          </span>
           <div className="flex gap-1 mt-auto">
             Inspired by
             <a
