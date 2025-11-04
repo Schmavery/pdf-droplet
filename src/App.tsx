@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -17,6 +17,7 @@ import DropZone from "@/components/app/DropZone";
 
 import favicon from "@assets/favicon.svg";
 import { Viewer } from "@/components/app/Viewer";
+import { createResource } from "@/lib/utils";
 
 const TEST_FILES: [string, string][] = Object.entries(
   import.meta.glob("@assets/test/*.pdf", {
@@ -30,17 +31,93 @@ type PageEntry = {
   operatorList: OperatorList;
 };
 
+type LoadedPdfState = {
+  manager?: LocalPdfManager;
+  pages: PageEntry[];
+  objects: ObjectMap;
+};
+
+function AppWithLoadedFile(props: {
+  pdfState: LoadedPdfState;
+  clear: () => void;
+  breadcrumb: Ref[];
+  setBreadcrumb: (bc: Ref[]) => void;
+}) {
+  const currentObject = props.breadcrumb.length
+    ? props.pdfState.objects.get(props.breadcrumb[props.breadcrumb.length - 1])
+    : undefined;
+  console.log("Current object:", currentObject);
+
+  const doc = props.pdfState.manager!.pdfDocument;
+  const pageResource = useMemo(
+    () => doc && createResource(doc.getPage(currentObject?.pageIndex ?? 0)),
+    [doc, currentObject?.pageIndex]
+  );
+
+  return (
+    <div className="h-screen w-full bg-gray-100">
+      <ResizablePanelGroup direction="horizontal" className="gap-0.5 margin-1">
+        <ResizablePanel>
+          <ResizablePanelGroup direction="vertical" className="gap-0.5">
+            <ResizablePanel
+              defaultSize={33}
+              className="shadow border border-solid border-gray-200 rounded bg-white mt-2 ml-2"
+            >
+              <ObjectList
+                objects={props.pdfState.objects}
+                selectedObject={currentObject?.ref}
+                selectObject={(r) => props.setBreadcrumb([r])}
+              />
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mb-2 ml-2">
+              <ObjectDetail
+                key={currentObject ? currentObject.ref.toString() : "no-object"}
+                breadcrumb={props.breadcrumb}
+                onBreadcrumbNavigate={(i) => {
+                  const newBreadcrumb = props.breadcrumb.slice(0, i + 1);
+                  props.setBreadcrumb(newBreadcrumb);
+                }}
+                onRefClick={(ref) => {
+                  const entry = props.pdfState.objects.get(ref);
+                  console.log(
+                    "Clicked ref:",
+                    ref,
+                    props.pdfState.objects,
+                    entry
+                  );
+                  if (entry) {
+                    props.setBreadcrumb([...props.breadcrumb, entry.ref]);
+                  }
+                }}
+                object={currentObject}
+                objects={props.pdfState.objects}
+                page={pageResource}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white m-2 ml-0">
+          <Viewer
+            objects={props.pdfState.objects}
+            manager={props.pdfState.manager}
+            currentObject={currentObject}
+            page={pageResource}
+            clearCurrentUpload={() => {
+              props.clear();
+            }}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
+  );
+}
+
 function App() {
   const [breadcrumb, setBreadcrumb] = useState<Ref[]>([]);
   const [file, setFile] = useState<ArrayBuffer>();
-  const [pdfState, setPdfState] = useState<
-    | {
-        manager?: LocalPdfManager;
-        pages: PageEntry[];
-        objects: ObjectMap;
-      }
-    | "loading"
-  >();
+  const [pdfState, setPdfState] = useState<LoadedPdfState | "loading">();
   // Load demo
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -140,63 +217,17 @@ function App() {
     return "loading";
   }
 
-  const currentObject = breadcrumb.length
-    ? pdfState.objects.get(breadcrumb[breadcrumb.length - 1])
-    : undefined;
-  console.log("Current object:", currentObject);
-
   return (
-    <div className="h-screen w-full bg-gray-100">
-      <ResizablePanelGroup direction="horizontal" className="gap-0.5 margin-1">
-        <ResizablePanel>
-          <ResizablePanelGroup direction="vertical" className="gap-0.5">
-            <ResizablePanel
-              defaultSize={33}
-              className="shadow border border-solid border-gray-200 rounded bg-white mt-2 ml-2"
-            >
-              <ObjectList
-                objects={pdfState.objects}
-                selectedObject={currentObject?.ref}
-                selectObject={(r) => setBreadcrumb([r])}
-              />
-            </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mb-2 ml-2">
-              <ObjectDetail
-                key={currentObject ? currentObject.ref.toString() : "no-object"}
-                breadcrumb={breadcrumb}
-                onBreadcrumbNavigate={(i) => {
-                  const newBreadcrumb = breadcrumb.slice(0, i + 1);
-                  setBreadcrumb(newBreadcrumb);
-                }}
-                onRefClick={(ref) => {
-                  const entry = pdfState.objects.get(ref);
-                  console.log("Clicked ref:", ref, pdfState.objects, entry);
-                  if (entry) {
-                    setBreadcrumb([...breadcrumb, entry.ref]);
-                  }
-                }}
-                object={currentObject}
-                objects={pdfState.objects}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white m-2 ml-0">
-          <Viewer
-            objects={pdfState.objects}
-            manager={pdfState.manager}
-            currentObject={currentObject}
-            clearCurrentUpload={() => {
-              setFile(undefined);
-              setPdfState(undefined);
-              setBreadcrumb([]);
-            }}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+    <AppWithLoadedFile
+      pdfState={pdfState}
+      breadcrumb={breadcrumb}
+      setBreadcrumb={setBreadcrumb}
+      clear={() => {
+        setFile(undefined);
+        setPdfState(undefined);
+        setBreadcrumb([]);
+      }}
+    />
   );
 }
 

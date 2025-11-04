@@ -12,6 +12,8 @@ import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import type { Stream } from "@pdfjs/core/stream";
 import ObjectStmRefs from "@/components/app/ObjectStmRefs";
 import ContentStreamView from "@/components/app/ContentStreamView";
+import type { Page } from "@pdfjs/core/document";
+import type { SuspenseResource } from "@/lib/utils";
 
 function DictEntryRow({
   keyLabel,
@@ -208,6 +210,7 @@ export default function ObjectDetail(props: {
   breadcrumb: Ref[];
   onBreadcrumbNavigate: (index: number) => void;
   onRefClick: (ref: Ref) => void;
+  page: SuspenseResource<Page>;
 }) {
   const val = props.object?.val;
   if (val instanceof FlateStream) {
@@ -283,7 +286,12 @@ export default function ObjectDetail(props: {
             />
           )}
           {val && val instanceof FlateStream && (
-            <ContentStreamView contentStream={val.buffer} />
+            <ContentStreamView
+              contentStream={val.buffer}
+              entry={props.object}
+              page={props.page}
+              onRefClick={props.onRefClick}
+            />
           )}
           {/* Fallback for other primitives */}
           {!(val instanceof Dict) &&

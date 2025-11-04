@@ -6,11 +6,14 @@ import { HexView } from "@/components/app/HexViewVirt";
 import { Button } from "@/components/ui/button";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { useMemo } from "react";
+import type { SuspenseResource } from "@/lib/utils";
+import type { Page } from "@pdfjs/core/document";
 
 export function Viewer(props: {
   manager?: LocalPdfManager;
   objects: ObjectMap;
   currentObject?: ObjectEntry;
+  page: SuspenseResource<Page>;
   clearCurrentUpload: () => void;
 }) {
   const bytes = useMemo(() => {
@@ -44,7 +47,7 @@ export function Viewer(props: {
         <PdfView
           objects={props.objects}
           manager={props.manager}
-          pageIndex={props.currentObject?.pageIndex}
+          page={props.page}
         />
       </TabsContent>
       <TabsContent value="hex">

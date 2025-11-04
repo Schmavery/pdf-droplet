@@ -5,12 +5,12 @@ import {
   type ObjectMap,
 } from "@/lib/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { DOMCanvasFactory } from "@pdfjs/display/canvas_factory.js";
 import type { Page, PDFDocument } from "@pdfjs/core/document";
 import { CanvasGraphics } from "@pdfjs/display/canvas.js";
 import { PageViewport } from "@pdfjs/display/display_utils";
-import { createResource, type SuspenseResource } from "@/lib/utils";
+import { type SuspenseResource } from "@/lib/utils";
 
 function PdfViewForPage(props: {
   doc: PDFDocument;
@@ -107,19 +107,15 @@ function PdfViewForPage(props: {
 
 export default function PdfView(props: {
   manager?: LocalPdfManager;
+  page: SuspenseResource<Page>;
   objects: ObjectMap;
-  pageIndex?: number;
 }) {
   const doc = props.manager?.pdfDocument;
   if (!doc) return <div>No document loaded</div>;
 
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <PdfViewForPage
-        doc={doc}
-        objects={props.objects}
-        page={createResource(doc.getPage(props.pageIndex ?? 0))}
-      />
+      <PdfViewForPage doc={doc} objects={props.objects} page={props.page} />
     </Suspense>
   );
 }

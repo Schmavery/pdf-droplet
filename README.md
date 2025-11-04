@@ -5,7 +5,6 @@ I couldn't find a PDF viewer that would show me the object level data. This uses
 # TODO
 
 - better support for struct tree stuff, maybe an alternative tree view vs the object list??
-- prettier view of drawing commands
 - toggle/edit drawing commands, see the change visually
 - filter out struct tree elems, objstm
 - ???
