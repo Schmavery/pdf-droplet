@@ -204,7 +204,11 @@ function App() {
           <DropZone setFile={async (f) => setFile(await f.arrayBuffer())} />
           <span className="mt-2 ml-1">
             Or try a
-            <a href="/?demo" target="_blank" className="text-blue-600 ml-1">
+            <a
+              href={`${import.meta.env.BASE_URL}?demo`}
+              target="_blank"
+              className="text-blue-600 ml-1"
+            >
               demo
             </a>
           </span>

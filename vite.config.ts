@@ -15,9 +15,7 @@ export default defineConfig({
     },
   },
   plugins: [tailwindcss(), react()],
-  build: {
-    terserOptions: {
-      keep_classnames: true,
-    },
+  esbuild: {
+    keepNames: true,
   },
 });
