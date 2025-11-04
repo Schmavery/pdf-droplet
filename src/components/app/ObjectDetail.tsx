@@ -1,5 +1,10 @@
 import React from "react";
-import type { ObjectEntry, ObjectMap, PDFVal } from "@/lib/loadPDF";
+import {
+  PDF_OBJS,
+  type ObjectEntry,
+  type ObjectMap,
+  type PDFVal,
+} from "@/lib/loadPDF";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
 import ObjectBacklinks from "./ObjectBacklinks";
@@ -219,6 +224,13 @@ export default function ObjectDetail(props: {
   console.log("Rendering ObjectDetail for object:", props.object);
 
   const objStmNum = props.object?.fromObjStm;
+  const matchingObj = [...PDF_OBJS].find(([, obj]) => {
+    return (
+      obj?.ref?.toString() === props.object?.ref.toString() &&
+      obj?.bitmap &&
+      obj?.bitmap instanceof ImageBitmap
+    );
+  })?.[1] as { bitmap: ImageBitmap } | undefined;
 
   return (
     <div className="p-2 border-l border-gray-200 h-full overflow-auto">
@@ -292,6 +304,24 @@ export default function ObjectDetail(props: {
               page={props.page}
               onRefClick={props.onRefClick}
             />
+          )}
+          {matchingObj && (
+            <div style={{ marginTop: 16 }}>
+              <h3 className="font-bold mb-2">Rendered Bitmap:</h3>
+              <canvas
+                width={matchingObj.bitmap.width}
+                height={matchingObj.bitmap.height}
+                style={{ border: "1px solid #ccc" }}
+                ref={(canvas) => {
+                  if (canvas) {
+                    const ctx = canvas.getContext("2d");
+                    if (ctx) {
+                      ctx.drawImage(matchingObj.bitmap, 0, 0);
+                    }
+                  }
+                }}
+              />
+            </div>
           )}
           {/* Fallback for other primitives */}
           {!(val instanceof Dict) &&
