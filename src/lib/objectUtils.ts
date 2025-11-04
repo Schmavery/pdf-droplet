@@ -1,5 +1,6 @@
 import type { ObjectEntry } from "@/lib/loadPDF";
 import { BaseStream } from "@pdfjs/core/base_stream";
+import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
 
 const NUMBER_CHARS = [..."❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴"];
@@ -20,7 +21,7 @@ function suffix(entry: ObjectEntry): string {
   }
   if (!entry.backlinks) return "";
   const firstWithHint = entry.backlinks.find(
-    (backlink) => backlink.hint !== undefined
+    (backlink) => backlink.hint !== undefined,
   );
   if (!firstWithHint) return "";
   return ` (${firstWithHint?.hint})`;
@@ -63,8 +64,8 @@ export function getObjectType(val: ObjectEntry): string {
           return `${prefix(val)}${name}`;
         }
       }
-      return `${prefix(val)}${val.val.constructor.name ?? "Stream"}${suffix(
-        val
+      return `${prefix(val)}${val.val instanceof FlateStream ? "FlateStream" : "Stream"}${suffix(
+        val,
       )}`;
     }
     default:
