@@ -1,8 +1,7 @@
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  SharedTooltipProvider,
+  useSharedTooltip,
+} from "@/components/ui/sharedtooltip";
 import {
   getOpDoc,
   parseContentStream,
@@ -17,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
 import type { Page } from "@pdfjs/core/document";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
+import React, { useMemo } from "react";
 import { Suspense } from "react";
 
 const DocColorsBorder: Record<OpTypes, string> = {
@@ -105,81 +105,136 @@ function ArgVal(props: {
   return <span>{printArgVal(props.val)}</span>;
 }
 
+const RichViewRow = React.memo(function RichViewRow(props: {
+  index: number;
+  parsedOps: ParsedOp[];
+  resources: Dict;
+  entry: ObjectEntry;
+  style?: React.CSSProperties;
+  onRefClick: (ref: Ref) => void;
+}) {
+  // const { index, style } = props;
+  const { showTooltip, hideTooltip } = useSharedTooltip();
+  const op = props.parsedOps[props.index];
+  const doc = getOpDoc(op.op);
+  return (
+    <li
+      style={{ ...props.style, marginLeft: `${op.indent / 2}em` }}
+      className={`odd:bg-gray-100 px-2 py-1 flex border-l-4 ${
+        doc ? DocColorsBorder[doc.type] : "border-transparent"
+      }`}
+    >
+      {!doc && (
+        <div>
+          {op.args.map((v, i) => (
+            <ArgVal
+              key={i}
+              val={v}
+              op={op}
+              resources={props.resources}
+              entry={props.entry}
+              onRefClick={props.onRefClick ?? (() => {})}
+            />
+          ))}{" "}
+          {op.op}
+        </div>
+      )}
+      {doc && (
+        <div>
+          {op.args.map((v, i) => (
+            <ArgVal
+              key={i}
+              val={v}
+              op={op}
+              resources={props.resources}
+              entry={props.entry}
+              onRefClick={props.onRefClick}
+            />
+          ))}{" "}
+          <button
+            onMouseEnter={(e) =>
+              showTooltip(
+                <div className="max-w-sm">
+                  {doc.doc}
+                  {doc.detail && <div className="mt-1">{doc.detail}</div>}
+                </div>,
+                e.currentTarget as HTMLElement
+              )
+            }
+            onMouseLeave={() => hideTooltip()}
+          >
+            <span className="font-bold">{op.op}</span>
+          </button>
+        </div>
+      )}
+    </li>
+  );
+});
+
 function RichView(props: {
   contentStream: Uint8Array;
   page: SuspenseResource<Page>;
   entry: ObjectEntry;
   onRefClick: (ref: Ref) => void;
 }) {
-  const resources = props.page.read().resources as Dict;
-  console.log("Resources dict:", resources);
-  const ops = parseContentStream(props.contentStream);
-  console.log("Parsed ops:", ops);
+  const page = props.page.read();
+  const resources = useMemo(
+    () => page.resources as Dict,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [page.pageIndex]
+  );
+  const ops = useMemo(
+    () => parseContentStream(props.contentStream),
+    [props.contentStream]
+  );
+  const [visibleCount, setVisibleCount] = React.useState(100);
+
+  const [, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    startTransition(() => {
+      setVisibleCount(ops.length);
+    });
+  }, [ops.length]);
 
   return (
-    <ul className="">
-      {ops.map((op, i) => {
-        const doc = getOpDoc(op.op);
-        return (
-          <li
+    <SharedTooltipProvider>
+      <ul>
+        {ops.slice(0, visibleCount).map((_, i) => (
+          <RichViewRow
             key={i}
-            style={{ marginLeft: `${op.indent / 2}em` }}
-            className={`odd:bg-gray-100 px-2 py-1 flex border-l-4 ${
-              doc ? DocColorsBorder[doc.type] : "border-transparent"
-            }`}
-          >
-            {!doc && (
-              <div>
-                {op.args.map((v, i) => (
-                  <ArgVal
-                    key={i}
-                    val={v}
-                    op={op}
-                    resources={resources}
-                    entry={props.entry}
-                    onRefClick={props.onRefClick ?? (() => {})}
-                  />
-                ))}{" "}
-                {op.op}
-              </div>
-            )}
-            {doc && (
-              <div>
-                {op.args.map((v, i) => (
-                  <ArgVal
-                    key={i}
-                    val={v}
-                    op={op}
-                    resources={resources}
-                    entry={props.entry}
-                    onRefClick={props.onRefClick}
-                  />
-                ))}{" "}
-                <Tooltip>
-                  <TooltipTrigger>
-                    <span className="font-bold">{op.op}</span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="max-w-sm">
-                      {doc.doc}
-                      {doc.detail && <div className="mt-1">{doc.detail}</div>}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            index={i}
+            entry={props.entry}
+            parsedOps={ops}
+            resources={resources}
+            onRefClick={props.onRefClick}
+          />
+        ))}
+      </ul>
+    </SharedTooltipProvider>
   );
+
+  // return (
+  //   <List
+  //     className="p-2 bg-muted rounded-md border @container"
+  //     rowComponent={RichViewRow}
+  //     rowCount={ops.length}
+  //     rowHeight={rowHeight}
+  //     rowProps={{
+  //       resources,
+  //       parsedOps: ops,
+  //       entry: props.entry,
+  //       onRefClick: props.onRefClick,
+  //     }}
+  //   />
+  // );
 }
 
 export default function ContentStreamView(props: {
   entry: ObjectEntry;
   contentStream: Uint8Array;
   page: SuspenseResource<Page>;
-  onRefClick?: (ref: Ref) => void;
+  onRefClick: (ref: Ref) => void;
 }) {
   if (
     (props.entry.val instanceof FlateStream &&
@@ -202,7 +257,7 @@ export default function ContentStreamView(props: {
               contentStream={props.contentStream}
               entry={props.entry}
               page={props.page}
-              onRefClick={props.onRefClick ?? (() => {})}
+              onRefClick={props.onRefClick}
             />
           </Suspense>
         </TabsContent>

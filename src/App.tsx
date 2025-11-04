@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -54,6 +54,22 @@ function AppWithLoadedFile(props: {
     [doc, currentObject?.pageIndex]
   );
 
+  const {
+    pdfState: { objects },
+    breadcrumb,
+    setBreadcrumb,
+  } = props;
+  const onRefClick = useCallback(
+    (ref: Ref) => {
+      const entry = objects.get(ref);
+      console.log("Clicked ref:", ref, objects, entry);
+      if (entry) {
+        setBreadcrumb([...breadcrumb, entry.ref]);
+      }
+    },
+    [objects, breadcrumb, setBreadcrumb]
+  );
+
   return (
     <div className="h-screen w-full bg-gray-100">
       <ResizablePanelGroup direction="horizontal" className="gap-0.5 margin-1">
@@ -78,18 +94,7 @@ function AppWithLoadedFile(props: {
                   const newBreadcrumb = props.breadcrumb.slice(0, i + 1);
                   props.setBreadcrumb(newBreadcrumb);
                 }}
-                onRefClick={(ref) => {
-                  const entry = props.pdfState.objects.get(ref);
-                  console.log(
-                    "Clicked ref:",
-                    ref,
-                    props.pdfState.objects,
-                    entry
-                  );
-                  if (entry) {
-                    props.setBreadcrumb([...props.breadcrumb, entry.ref]);
-                  }
-                }}
+                onRefClick={onRefClick}
                 object={currentObject}
                 objects={props.pdfState.objects}
                 page={pageResource}
