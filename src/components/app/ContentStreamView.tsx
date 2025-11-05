@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
 import type { Page } from "@pdfjs/core/document";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
+import { Stream } from "@pdfjs/core/stream";
 import React, { useMemo } from "react";
 import { Suspense } from "react";
 
@@ -232,7 +233,8 @@ export default function ContentStreamView(props: {
   onRefClick: (ref: Ref) => void;
 }) {
   if (
-    (props.entry.val instanceof FlateStream &&
+    ((props.entry.val instanceof Stream ||
+      props.entry.val instanceof FlateStream) &&
       (props.entry.val.dict.get("Type") as Name)?.name === "XObject" &&
       (props.entry.val.dict.get("Subtype") as Name)?.name === "Form") ||
     props.entry.backlinks?.find((backlink) => backlink.hint !== undefined)
@@ -257,7 +259,7 @@ export default function ContentStreamView(props: {
           </Suspense>
         </TabsContent>
         <TabsContent value="raw">
-          <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line">
+          <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
             {new TextDecoder("utf-8").decode(props.contentStream)}
           </pre>
         </TabsContent>
@@ -266,7 +268,7 @@ export default function ContentStreamView(props: {
   }
 
   return (
-    <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line">
+    <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
       {new TextDecoder("utf-8").decode(props.contentStream)}
     </pre>
   );

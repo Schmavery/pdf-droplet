@@ -77,7 +77,7 @@ export function findRefs(val: PDFVal, hint?: string) {
     }
   } else if (Array.isArray(val)) {
     for (const v of val) {
-      refs.push(...findRefs(v));
+      refs.push(...findRefs(v, hint));
     }
   } else if (val && (val instanceof FlateStream || val instanceof Stream)) {
     const dictVal = val.dict;
@@ -91,7 +91,7 @@ export function populateAncestorPageIndex(
   target: Ref,
   objects: ObjectEntry[],
   pagesArray: Ref[],
-  visited = new Set<string>()
+  visited = new Set<string>(),
 ) {
   if (visited.has(target.toString())) {
     return;
@@ -107,7 +107,7 @@ export function populateAncestorPageIndex(
     return;
   }
   const pageIndex = pagesArray.findIndex((pageRef) =>
-    isRefsEqual(pageRef, target)
+    isRefsEqual(pageRef, target),
   );
   if (pageIndex != -1) {
     console.log("found page for dict");
@@ -121,10 +121,10 @@ export function populateAncestorPageIndex(
   const ancestorPageIndexSet = new Set(
     targetObject.backlinks
       ?.map((backlink) =>
-        objects.find((obj) => isRefsEqual(obj.ref, backlink.ref))
+        objects.find((obj) => isRefsEqual(obj.ref, backlink.ref)),
       )
       .map((entry) => entry?.pageIndex)
-      .filter((v) => v !== undefined)
+      .filter((v) => v !== undefined),
   );
 
   if (ancestorPageIndexSet.size == 1) {
@@ -199,7 +199,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
     if (entry.fromObjStm && !objStmIndex.has(entry.fromObjStm.num)) {
       // const objstm = doc.xref.fetch(entry.fromObjStm);
       const objstm = entries.find((e) =>
-        isRefsEqual(e.ref, entry.fromObjStm!)
+        isRefsEqual(e.ref, entry.fromObjStm!),
       )?.val;
       if (objstm instanceof FlateStream && objstm.dict instanceof Dict) {
         const dict = objstm.dict;
@@ -235,13 +235,13 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
       const objstmInfo = objStmIndex.get(entry.fromObjStm.num);
       if (objstmInfo) {
         const objEntry = objstmInfo.entries.find(
-          (e) => e.num === entry.ref.num
+          (e) => e.num === entry.ref.num,
         );
         if (!objEntry) {
           console.warn(
             "Couldn't find obj entry in objstm for",
             entry.ref,
-            entry.fromObjStm
+            entry.fromObjStm,
           );
         }
         entry.streamRange.start = objstmInfo.first + (objEntry?.offset ?? 0);
@@ -252,7 +252,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
 
   // Set up backlinks
   const backlinksIndex = Object.fromEntries(
-    entries.map((entry) => [entry.ref.toString(), findRefs(entry.val)])
+    entries.map((entry) => [entry.ref.toString(), findRefs(entry.val)]),
   );
   entries.forEach((entry) => {
     entry.backlinks = entries.flatMap((e) => {
@@ -289,7 +289,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
 
 export async function loadRenderingDataForPage(
   doc: PDFDocument,
-  pageIndex: number
+  pageIndex: number,
 ) {
   const page: Page = await doc.getPage(pageIndex);
   page.loadResources(RESOURCES_KEYS_OPERATOR_LIST);

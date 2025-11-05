@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
-import type { Stream } from "@pdfjs/core/stream";
+import { Stream } from "@pdfjs/core/stream";
 import ObjectStmRefs from "@/components/app/ObjectStmRefs";
 import ContentStreamView from "@/components/app/ContentStreamView";
 import type { Page } from "@pdfjs/core/document";
@@ -134,7 +134,7 @@ function DictEntryRow({
 function renderValue(
   val: PDFVal,
   depth: number,
-  onRefClick?: (ref: Ref) => void
+  onRefClick?: (ref: Ref) => void,
 ) {
   if (val instanceof Dict) {
     return <DictEntries dict={val} depth={depth + 1} onRefClick={onRefClick} />;
@@ -182,8 +182,8 @@ function DictEntries(props: {
   const entries = dict
     ? [...dict._map.entries()]
     : array
-    ? array.map((v, i) => [i, v])
-    : [];
+      ? array.map((v, i) => [i, v])
+      : [];
 
   return (
     <ul style={{ listStyle: "none", paddingLeft: depth * 16 }}>
@@ -221,7 +221,9 @@ export default function ObjectDetail(props: {
   if (val instanceof FlateStream) {
     val.getBytes();
   }
-  console.log("Rendering ObjectDetail for object:", props.object);
+  console.log("Rendering ObjectDetail for object:", props.object, [
+    ...PDF_OBJS,
+  ]);
 
   const objStmNum = props.object?.fromObjStm;
   const matchingObj = [...PDF_OBJS].find(([, obj]) => {
@@ -305,9 +307,17 @@ export default function ObjectDetail(props: {
               onRefClick={props.onRefClick}
             />
           )}
+          {val && !(val instanceof FlateStream) && val instanceof Stream && (
+            <ContentStreamView
+              contentStream={val.bytes.slice(val.start, val.end)}
+              entry={props.object}
+              page={props.page}
+              onRefClick={props.onRefClick}
+            />
+          )}
           {matchingObj && (
             <div style={{ marginTop: 16 }}>
-              <h3 className="font-bold mb-2">Rendered Bitmap:</h3>
+              <h3 className="font-bold mb-2">Rendered Image:</h3>
               <canvas
                 width={matchingObj.bitmap.width}
                 height={matchingObj.bitmap.height}
@@ -323,6 +333,7 @@ export default function ObjectDetail(props: {
               />
             </div>
           )}
+
           {/* Fallback for other primitives */}
           {!(val instanceof Dict) &&
             !Array.isArray(val) &&
