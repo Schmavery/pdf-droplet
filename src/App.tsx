@@ -18,6 +18,7 @@ import DropZone from "@/components/app/DropZone";
 import favicon from "@assets/favicon.svg";
 import { Viewer } from "@/components/app/Viewer";
 import { createResource } from "@/lib/utils";
+import github from "@assets/github.svg";
 
 const TEST_FILES: [string, string][] = Object.entries(
   import.meta.glob("@assets/test/*.pdf", {
@@ -213,15 +214,28 @@ function App() {
             </a>
           </span>
           <div className="flex gap-1 mt-auto">
-            Inspired by
-            <a
-              href="https://fontdrop.info/"
-              target="_blank"
-              className="text-blue-600"
-            >
-              FontDrop!
-            </a>{" "}
-            ❤️
+            <div className="flex gap-1">
+              Inspired by
+              <a
+                href="https://fontdrop.info/"
+                target="_blank"
+                className="text-blue-600"
+              >
+                FontDrop!
+              </a>{" "}
+              ❤️
+            </div>
+            <div className="ml-auto flex gap-1">
+              <img src={github} alt="" className="w-6 h-6 mr-1" />
+              <a
+                href="https://github.com/schmavery/pdf-droplet"
+                target="_blank"
+                className="text-blue-600"
+              >
+                Contribute
+              </a>{" "}
+              on GitHub
+            </div>
           </div>
         </div>
       </div>

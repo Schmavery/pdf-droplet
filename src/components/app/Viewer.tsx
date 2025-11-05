@@ -8,6 +8,7 @@ import { FlateStream } from "@pdfjs/core/flate_stream";
 import { useMemo } from "react";
 import type { SuspenseResource } from "@/lib/utils";
 import type { Page } from "@pdfjs/core/document";
+import github from "@/assets/github.svg";
 
 export function Viewer(props: {
   manager?: LocalPdfManager;
@@ -37,10 +38,16 @@ export function Viewer(props: {
           <TabsTrigger value="pdf">PDF</TabsTrigger>
           <TabsTrigger value="hex">Bytes</TabsTrigger>
         </TabsList>
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2 items-center">
           <Button size={"sm"} onClick={props.clearCurrentUpload}>
             Upload PDF
           </Button>
+          <a
+            href="https://github.com/schmavery/pdf-droplet"
+            target="_blank"
+          >
+            <img src={github} alt="GitHub" className="w-6 h-6" />
+          </a>
         </div>
       </div>
       <TabsContent value="pdf">

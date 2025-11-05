@@ -8,9 +8,7 @@ I couldn't find a PDF viewer that would show me the object level data. This uses
 - toggle/edit drawing commands, see the change visually
 - load all images upfront to display in detail view
 - object list filtering options (image, font, xobj, struct tree elems, objstm)
-- better detection for content streams (right now we check if it's referenced by a Contents field by the parent, but this can also be an array)
 - parse & display font file information from binary stream
-- parse & display cidset info
 - link MCIDs in content streams to their elems
 - ???
 
