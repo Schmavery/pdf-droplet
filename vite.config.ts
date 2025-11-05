@@ -15,7 +15,4 @@ export default defineConfig({
     },
   },
   plugins: [tailwindcss(), react()],
-  esbuild: {
-    keepNames: true,
-  },
 });

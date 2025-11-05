@@ -102,8 +102,17 @@ function ArgVal(props: {
     }
   }
 
-  return <span>{printArgVal(props.val)}</span>;
+  let strVal = printArgVal(props.val);
+  if (INLINE_IMAGE_OPS.includes(props.op.op) && props.val.type === "dict") {
+    strVal = Object.entries(props.val.entries)
+      .map(([k, val]) => `/${k} ${printArgVal(val)}`)
+      .join(" ");
+  }
+
+  return <span>{strVal}</span>;
 }
+
+const INLINE_IMAGE_OPS = ["BI", "ID", "EI"];
 
 const RichViewRow = React.memo(function RichViewRow(props: {
   index: number;
@@ -140,7 +149,7 @@ const RichViewRow = React.memo(function RichViewRow(props: {
         </div>
       )}
       {doc && (
-        <div>
+        <div className="flex gap-1">
           {op.args.map((v, i) => (
             <ArgVal
               key={i}
@@ -152,13 +161,14 @@ const RichViewRow = React.memo(function RichViewRow(props: {
             />
           ))}{" "}
           <button
+            style={{ order: INLINE_IMAGE_OPS.includes(op.op) ? -1 : undefined }}
             onMouseEnter={(e) =>
               showTooltip(
                 <div className="max-w-sm">
                   {doc.doc}
                   {doc.detail && <div className="mt-1">{doc.detail}</div>}
                 </div>,
-                e.currentTarget as HTMLElement
+                e.currentTarget as HTMLElement,
               )
             }
             onMouseLeave={() => hideTooltip()}
@@ -181,11 +191,11 @@ function RichView(props: {
   const resources = useMemo(
     () => page.resources as Dict,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [page.pageIndex]
+    [page.pageIndex],
   );
   const ops = useMemo(
     () => parseContentStream(props.contentStream),
-    [props.contentStream]
+    [props.contentStream],
   );
   const [visibleCount, setVisibleCount] = React.useState(100);
 
@@ -213,21 +223,6 @@ function RichView(props: {
       </ul>
     </SharedTooltipProvider>
   );
-
-  // return (
-  //   <List
-  //     className="p-2 bg-muted rounded-md border @container"
-  //     rowComponent={RichViewRow}
-  //     rowCount={ops.length}
-  //     rowHeight={rowHeight}
-  //     rowProps={{
-  //       resources,
-  //       parsedOps: ops,
-  //       entry: props.entry,
-  //       onRefClick: props.onRefClick,
-  //     }}
-  //   />
-  // );
 }
 
 export default function ContentStreamView(props: {

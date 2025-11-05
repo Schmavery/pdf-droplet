@@ -77,7 +77,7 @@ export function printArgVal(v: ArgVal): string {
       return `[${v.contents.map(printArgVal).join(", ")}]`;
     case "dict": {
       const parts = Object.entries(v.entries).map(
-        ([k, val]) => `/${k} ${printArgVal(val)}`
+        ([k, val]) => `/${k} ${printArgVal(val)}`,
       );
       return `<< ${parts.join(" ")} >>`;
     }
@@ -242,7 +242,7 @@ const OP_OPEN = new Set(["q", "BT", "BDC", "BMC"]);
 const OP_CLOSE = new Set(["Q", "ET", "EMC"]);
 
 function withIndent(
-  raw: { op: string; args: ArgVal[]; imgLen?: number }[]
+  raw: { op: string; args: ArgVal[]; imgLen?: number }[],
 ): ParsedOp[] {
   let depth = 0;
   const out: ParsedOp[] = [];
@@ -305,7 +305,7 @@ function readName(bytes: Uint8Array, i: number): [NameVal, number] {
   while (i < bytes.length && !isWhite(bytes[i]) && !isDelim(bytes[i])) i++;
   const raw = bytesToLatin1(bytes, start, i);
   const decoded = raw.replace(/#([0-9A-Fa-f]{2})/g, (_, h) =>
-    String.fromCharCode(parseInt(h, 16))
+    String.fromCharCode(parseInt(h, 16)),
   );
   return [{ type: "name", name: decoded }, i];
 }
@@ -427,7 +427,7 @@ function tokenize(bytes: Uint8Array): Token[] {
   let i = 0;
 
   function findInlineImageEnd(
-    idx: number
+    idx: number,
   ): { start: number; end: number } | null {
     // Look for EI delimited by whitespace or delimiter
     for (let k = idx + 1; k < bytes.length - 2; k++) {
@@ -454,25 +454,23 @@ function tokenize(bytes: Uint8Array): Token[] {
     if (maybe === "BI") {
       toks.push({ kind: "op", op: "BI" });
       // Read inline image dict: sequence of name-like keys / values until ID
-      while (true) {
+      while (i < bytes.length) {
         i = skipWS(bytes, i);
         const [w, j2] = readNumberOrWord(bytes, i);
-        i = j2;
+        console.log(w);
         if (w === "ID") {
           toks.push({ kind: "op", op: "ID" });
+          i = j2;
           break;
         }
         // In BI dict, keys are bare words (not "/Key")
-        const key = w;
         const [val, j3] = readObject(bytes, i);
         i = j3;
-        // we encode as a dict entry by pushing artificial pair tokens:
-        toks.push({ kind: "val", value: { type: "name", name: key } });
         toks.push({ kind: "val", value: val });
       }
       // After ID, exactly one whitespace char, then raw data until EI
-      if (!isWhite(bytes[i]))
-        throw new Error("Expected 1 whitespace byte after ID");
+      // if (!isWhite(bytes[i]))
+      //   throw new Error("Expected 1 whitespace byte after ID");
       i++;
       const end = findInlineImageEnd(i);
       if (!end) throw new Error("Inline image: EI not found");
@@ -548,7 +546,7 @@ function looksLikeOperator(s: string): boolean {
 }
 
 function toOps(
-  tokens: Token[]
+  tokens: Token[],
 ): { op: string; args: ArgVal[]; imgLen?: number }[] {
   const out: { op: string; args: ArgVal[]; imgLen?: number }[] = [];
   const stack: ArgVal[] = [];
