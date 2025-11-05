@@ -15,15 +15,15 @@ function prefix(entry: ObjectEntry): string {
   return NUMBER_CHARS[entry.pageIndex] + " ";
 }
 
-function suffix(entry: ObjectEntry): string {
-  if (entry.nameHint) {
+function suffix(entry: ObjectEntry, name?: string): string {
+  if (entry.nameHint && name !== entry.nameHint) {
     return ` (${entry.nameHint})`;
   }
   if (!entry.backlinks) return "";
   const firstWithHint = entry.backlinks.find(
     (backlink) => backlink.hint !== undefined,
   );
-  if (!firstWithHint) return "";
+  if (!firstWithHint || name === firstWithHint.hint) return "";
   return ` (${firstWithHint?.hint})`;
 }
 
@@ -51,8 +51,8 @@ export function getObjectType(val: ObjectEntry): string {
       return `${prefix(val)}Ref${suffix(val)}`;
     case val.val instanceof Dict: {
       const name = val.val.get("Type");
-      if (name) {
-        return `${prefix(val)}${name}${suffix(val)}`;
+      if (name?.name) {
+        return `${prefix(val)}${name.name}${suffix(val, name.name)}`;
       }
       return `${prefix(val)}Dict` + `${suffix(val)}`;
     }
@@ -60,8 +60,8 @@ export function getObjectType(val: ObjectEntry): string {
       if ("dict" in val.val) {
         const dictVal = val.val.dict as Dict | undefined;
         const name = dictVal?.get("Type");
-        if (name) {
-          return `${prefix(val)}${name}`;
+        if (name?.name) {
+          return `${prefix(val)}${name.name}`;
         }
       }
       return `${prefix(val)}${val.val instanceof FlateStream ? "FlateStream" : "Stream"}${suffix(
