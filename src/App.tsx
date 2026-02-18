@@ -38,14 +38,17 @@ type LoadedPdfState = {
   objects: ObjectMap;
 };
 
+type BreadcrumbEntry = { ref: Ref; expandPath?: string[] };
+
 function AppWithLoadedFile(props: {
   pdfState: LoadedPdfState;
   clear: () => void;
-  breadcrumb: Ref[];
-  setBreadcrumb: (bc: Ref[]) => void;
+  breadcrumb: BreadcrumbEntry[];
+  setBreadcrumb: (bc: BreadcrumbEntry[]) => void;
 }) {
-  const currentObject = props.breadcrumb.length
-    ? props.pdfState.objects.get(props.breadcrumb[props.breadcrumb.length - 1])
+  const currentEntry = props.breadcrumb[props.breadcrumb.length - 1];
+  const currentObject = currentEntry
+    ? props.pdfState.objects.get(currentEntry.ref)
     : undefined;
   console.log("Current object:", currentObject);
 
@@ -61,11 +64,11 @@ function AppWithLoadedFile(props: {
     setBreadcrumb,
   } = props;
   const onRefClick = useCallback(
-    (ref: Ref) => {
+    (ref: Ref, expandPath?: string[]) => {
       const entry = objects.get(ref);
       console.log("Clicked ref:", ref, objects, entry);
       if (entry) {
-        setBreadcrumb([...breadcrumb, entry.ref]);
+        setBreadcrumb([...breadcrumb, { ref: entry.ref, expandPath }]);
       }
     },
     [objects, breadcrumb, setBreadcrumb],
@@ -83,14 +86,21 @@ function AppWithLoadedFile(props: {
               <ObjectList
                 objects={props.pdfState.objects}
                 selectedObject={currentObject?.ref}
-                selectObject={(r) => props.setBreadcrumb([r])}
+                selectObject={(r) => props.setBreadcrumb([{ ref: r }])}
               />
             </ResizablePanel>
             <ResizableHandle />
             <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mb-2 ml-2">
               <ObjectDetail
-                key={currentObject ? currentObject.ref.toString() : "no-object"}
-                breadcrumb={props.breadcrumb}
+                key={
+                  (currentEntry
+                    ? currentEntry.ref.toString()
+                    : "no-object") +
+                  (currentEntry?.expandPath
+                    ? `:${currentEntry.expandPath.join(".")}`
+                    : "")
+                }
+                breadcrumb={props.breadcrumb.map((e) => e.ref)}
                 onBreadcrumbNavigate={(i) => {
                   const newBreadcrumb = props.breadcrumb.slice(0, i + 1);
                   props.setBreadcrumb(newBreadcrumb);
@@ -99,6 +109,7 @@ function AppWithLoadedFile(props: {
                 object={currentObject}
                 objects={props.pdfState.objects}
                 page={pageResource}
+                expandPath={currentEntry?.expandPath}
               />
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -121,7 +132,7 @@ function AppWithLoadedFile(props: {
 }
 
 function App() {
-  const [breadcrumb, setBreadcrumb] = useState<Ref[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbEntry[]>([]);
   const [file, setFile] = useState<ArrayBuffer>();
   const [pdfState, setPdfState] = useState<LoadedPdfState | "loading">();
   // Load demo
@@ -187,7 +198,7 @@ function App() {
       const objects = [...entries.values()];
       objects.sort(makeSortComparator(DEFAULT_SORT));
       const first = objects[0]?.ref;
-      setBreadcrumb(first ? [first] : []);
+      setBreadcrumb(first ? [{ ref: first }] : []);
     }
     go();
     return () => {
