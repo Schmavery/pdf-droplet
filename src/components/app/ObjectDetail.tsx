@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useContext, useState } from "react";
 import {
   PDF_OBJS,
   type ObjectEntry,
@@ -20,12 +20,15 @@ import ContentStreamView from "@/components/app/ContentStreamView";
 import type { Page } from "@pdfjs/core/document";
 import type { SuspenseResource } from "@/lib/utils";
 
+const ClearHighlightContext = React.createContext<() => void>(() => {});
+
 function DictEntryRow({
   keyLabel,
   val,
   depth,
   isNested,
   onRefClick,
+  expandPath,
 }: {
   keyLabel: string;
   val: PDFVal;
@@ -33,8 +36,14 @@ function DictEntryRow({
   isNested: boolean;
   dict?: Dict;
   onRefClick?: (ref: Ref) => void;
+  expandPath?: string[];
 }) {
-  const [open, setOpen] = React.useState(false);
+  const shouldAutoExpand = expandPath?.[0] === keyLabel;
+  const isHighlighted =
+    shouldAutoExpand && (expandPath?.length === 1 || !isNested);
+  const [open, setOpen] = React.useState(shouldAutoExpand ?? false);
+  const clearHighlight = useContext(ClearHighlightContext);
+
   // Helper for summary
   let summary = null;
   if (!open && isNested) {
@@ -51,8 +60,17 @@ function DictEntryRow({
 
   if (isNested) {
     return (
-      <li style={{ marginBottom: 4 }}>
-        <Collapsible open={open} onOpenChange={setOpen}>
+      <li
+        style={{ marginBottom: 4 }}
+        className={isHighlighted ? "bg-blue-200 rounded" : undefined}
+      >
+        <Collapsible
+          open={open}
+          onOpenChange={(v) => {
+            setOpen(v);
+            if (expandPath?.length !== 0) clearHighlight();
+          }}
+        >
           <CollapsibleTrigger
             asChild
             style={{ background: "none", border: "none", padding: 0 }}
@@ -105,7 +123,12 @@ function DictEntryRow({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div style={{ marginLeft: 16 }}>
-              {renderValue(val, depth, onRefClick)}
+              {renderValue(
+                val,
+                depth,
+                onRefClick,
+                shouldAutoExpand ? expandPath?.slice(1) : undefined,
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -113,7 +136,10 @@ function DictEntryRow({
     );
   } else {
     return (
-      <li style={{ marginBottom: 4 }}>
+      <li
+        style={{ marginBottom: 4 }}
+        className={isHighlighted ? "bg-blue-200 rounded" : undefined}
+      >
         <span
           style={{
             display: "inline-flex",
@@ -135,13 +161,26 @@ function renderValue(
   val: PDFVal,
   depth: number,
   onRefClick?: (ref: Ref) => void,
+  expandPath?: string[],
 ) {
   if (val instanceof Dict) {
-    return <DictEntries dict={val} depth={depth + 1} onRefClick={onRefClick} />;
+    return (
+      <DictEntries
+        dict={val}
+        depth={depth + 1}
+        onRefClick={onRefClick}
+        expandPath={expandPath}
+      />
+    );
   }
   if (Array.isArray(val)) {
     return (
-      <DictEntries array={val} depth={depth + 1} onRefClick={onRefClick} />
+      <DictEntries
+        array={val}
+        depth={depth + 1}
+        onRefClick={onRefClick}
+        expandPath={expandPath}
+      />
     );
   }
   if (val instanceof Ref) {
@@ -166,7 +205,12 @@ function renderValue(
   }
   if (val instanceof FlateStream) {
     return (
-      <DictEntries dict={val.dict} depth={depth + 1} onRefClick={onRefClick} />
+      <DictEntries
+        dict={val.dict}
+        depth={depth + 1}
+        onRefClick={onRefClick}
+        expandPath={expandPath}
+      />
     );
   }
   return <span>{val?.toString()}</span>;
@@ -177,8 +221,9 @@ function DictEntries(props: {
   array?: PDFVal[];
   depth?: number;
   onRefClick?: (ref: Ref) => void;
+  expandPath?: string[];
 }) {
-  const { dict, array, depth = 0, onRefClick } = props;
+  const { dict, array, depth = 0, onRefClick, expandPath } = props;
   const entries = dict
     ? [...dict._map.entries()]
     : array
@@ -202,6 +247,7 @@ function DictEntries(props: {
             isNested={isNested}
             dict={dict}
             onRefClick={onRefClick}
+            expandPath={expandPath}
           />
         );
       })}
@@ -214,9 +260,16 @@ export default function ObjectDetail(props: {
   objects: ObjectMap;
   breadcrumb: Ref[];
   onBreadcrumbNavigate: (index: number) => void;
-  onRefClick: (ref: Ref) => void;
+  onRefClick: (ref: Ref, expandPath?: string[]) => void;
   page: SuspenseResource<Page>;
+  expandPath?: string[];
 }) {
+  const [activeExpandPath, setActiveExpandPath] = useState(props.expandPath);
+  const clearHighlight = useCallback(
+    () => setActiveExpandPath(undefined),
+    [],
+  );
+
   const val = props.object?.val;
   if (val instanceof FlateStream) {
     val.getBytes();
@@ -235,6 +288,7 @@ export default function ObjectDetail(props: {
   })?.[1] as { bitmap: ImageBitmap } | undefined;
 
   return (
+    <ClearHighlightContext.Provider value={clearHighlight}>
     <div className="p-2 border-l border-gray-200 h-full overflow-auto">
       <div className="mb-4">
         <ObjectBreadcrumb
@@ -265,7 +319,12 @@ export default function ObjectDetail(props: {
       {props.object && (
         <div>
           {val instanceof Dict && (
-            <DictEntries dict={val} depth={0} onRefClick={props.onRefClick} />
+            <DictEntries
+              dict={val}
+              depth={0}
+              onRefClick={props.onRefClick}
+              expandPath={activeExpandPath}
+            />
           )}
           {Array.isArray(val) &&
             (val.length > 0 ? (
@@ -273,6 +332,7 @@ export default function ObjectDetail(props: {
                 array={val}
                 depth={0}
                 onRefClick={props.onRefClick}
+                expandPath={activeExpandPath}
               />
             ) : (
               <span
@@ -297,6 +357,7 @@ export default function ObjectDetail(props: {
               dict={(val as unknown as Stream).dict}
               depth={0}
               onRefClick={props.onRefClick}
+              expandPath={activeExpandPath}
             />
           )}
           {val && val instanceof FlateStream && (
@@ -362,5 +423,6 @@ export default function ObjectDetail(props: {
         </div>
       )}
     </div>
+    </ClearHighlightContext.Provider>
   );
 }

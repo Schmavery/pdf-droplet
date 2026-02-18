@@ -31,12 +31,57 @@ const DocColorsBorder: Record<OpTypes, string> = {
   markedcontent: "border-purple-400",
 };
 
+type ResourceLookup = { ref: Ref; expandPath?: string[] };
+
+/**
+ * Look up a content-stream resource name (e.g. "E2" in /E2 gs) and return
+ * a Ref that can be navigated to, plus an optional key-path to auto-expand
+ * when the target is a parent container rather than the resource itself.
+ *
+ * Strategy per resources dict (entry resources first, then page resources):
+ *  1. Direct ref – the name maps to an indirect object (e.g. /E2 21 0 R).
+ *  2. Subdict ref – the name exists but is inline; link to the subdictionary
+ *     itself if it is an indirect object (e.g. /ExtGState 15 0 R).
+ *  3. Resources-dict ref – both the name and subdict are inline; link to the
+ *     resources dict via its objId (e.g. 12R).
+ */
+function findResourceRef(
+  subdictName: string,
+  name: string,
+  ...resourceDicts: (Dict | undefined)[]
+): ResourceLookup | null {
+  for (const resources of resourceDicts) {
+    if (!resources) continue;
+
+    const resourceDict = resources.get(subdictName) as Dict | undefined;
+    if (!resourceDict) continue;
+
+    const rawVal = resourceDict.getRaw(name);
+    if (rawVal === undefined) continue;
+
+    // 1. Direct ref to the resource object
+    if (rawVal instanceof Ref) return { ref: rawVal };
+
+    // 2. The resource is inline – try the subdictionary ref
+    const rawSubdict = resources.getRaw(subdictName);
+    if (rawSubdict instanceof Ref)
+      return { ref: rawSubdict, expandPath: [name] };
+
+    // 3. Both inline – try the resources dict's own object ref
+    if (resources.objId) {
+      const ref = Ref.fromString(resources.objId);
+      if (ref) return { ref, expandPath: [subdictName, name] };
+    }
+  }
+  return null;
+}
+
 function ArgVal(props: {
   val: ArgVal;
   op: ParsedOp;
   resources: Dict;
   entry: ObjectEntry;
-  onRefClick: (ref: Ref) => void;
+  onRefClick: (ref: Ref, expandPath?: string[]) => void;
 }) {
   let subdictName: string | null = null;
 
@@ -64,24 +109,20 @@ function ArgVal(props: {
   }
 
   if (subdictName && props.val.type === "name") {
-    let resourceRef: Ref | null = null;
-
+    const entryVal = props.entry.val;
     const entryResources =
-      props.entry.val instanceof FlateStream
-        ? (props.entry.val.dict.get("Resources") as Dict)
-        : null;
+      entryVal instanceof FlateStream || entryVal instanceof Stream
+        ? (entryVal.dict?.get("Resources") as Dict | undefined)
+        : undefined;
 
-    if (entryResources) {
-      const resourceDict = entryResources.get(subdictName) as Dict;
-      resourceRef = resourceDict?.getRaw(props.val.name) as Ref;
-    }
+    const lookup = findResourceRef(
+      subdictName,
+      props.val.name,
+      entryResources,
+      props.resources,
+    );
 
-    if (!resourceRef && props.resources) {
-      const resourceDict = props.resources.get(subdictName) as Dict;
-      resourceRef = resourceDict.getRaw(props.val.name) as Ref;
-    }
-
-    if (resourceRef && resourceRef instanceof Ref) {
+    if (lookup) {
       return (
         <button
           type="button"
@@ -94,8 +135,8 @@ function ArgVal(props: {
             display: "inline",
             marginInline: "0.25em",
           }}
-          aria-label={`Select resource ${resourceRef.toString()}`}
-          onClick={() => props.onRefClick(resourceRef)}
+          aria-label={`Select resource ${lookup.ref.toString()}`}
+          onClick={() => props.onRefClick(lookup.ref, lookup.expandPath)}
         >
           {printArgVal(props.val)}
         </button>
@@ -121,7 +162,7 @@ const RichViewRow = React.memo(function RichViewRow(props: {
   resources: Dict;
   entry: ObjectEntry;
   style?: React.CSSProperties;
-  onRefClick: (ref: Ref) => void;
+  onRefClick: (ref: Ref, expandPath?: string[]) => void;
 }) {
   // const { index, style } = props;
   const { showTooltip, hideTooltip } = useSharedTooltip();
@@ -186,7 +227,7 @@ function RichView(props: {
   contentStream: Uint8Array;
   page: SuspenseResource<Page>;
   entry: ObjectEntry;
-  onRefClick: (ref: Ref) => void;
+  onRefClick: (ref: Ref, expandPath?: string[]) => void;
 }) {
   const page = props.page.read();
   const resources = useMemo(
@@ -230,7 +271,7 @@ export default function ContentStreamView(props: {
   entry: ObjectEntry;
   contentStream: Uint8Array;
   page: SuspenseResource<Page>;
-  onRefClick: (ref: Ref) => void;
+  onRefClick: (ref: Ref, expandPath?: string[]) => void;
 }) {
   if (
     ((props.entry.val instanceof Stream ||
