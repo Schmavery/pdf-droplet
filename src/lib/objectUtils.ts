@@ -60,8 +60,18 @@ export function getObjectType(val: ObjectEntry): string {
       if ("dict" in val.val) {
         const dictVal = val.val.dict as Dict | undefined;
         const name = dictVal?.get("Type");
+        const subtype = dictVal?.get("Subtype");
         if (name?.name) {
-          return `${prefix(val)}${name.name}`;
+          return `${prefix(val)}${name.name}${suffix({ ...val, nameHint: subtype?.name ?? val.nameHint }, name.name)}`;
+        }
+        if (subtype?.name) {
+          return `${prefix(val)}${subtype.name}${suffix(val, subtype.name)}`;
+        }
+        // Special case for ICC profiles
+        const n = dictVal?.get("N");
+        if (typeof n === "number" && (n === 1 || n === 3 || n === 4)) {
+          const csName = n === 1 ? "Gray" : n === 3 ? "RGB" : "CMYK";
+          return `${prefix(val)}ICC Profile (${csName})${suffix(val)}`;
         }
       }
       return `${prefix(val)}${val.val instanceof FlateStream ? "FlateStream" : "Stream"}${suffix(

@@ -10,6 +10,7 @@ import {
   type OpTypes,
   type ParsedOp,
 } from "@/lib/contentStream";
+import { isICCProfile } from "@/lib/iccProfile";
 import type { ObjectEntry } from "@/lib/loadPDF";
 import { type SuspenseResource } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
@@ -19,6 +20,7 @@ import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 import React, { useMemo } from "react";
 import { Suspense } from "react";
+import ICCProfileView from "./ICCProfileView";
 
 const DocColorsBorder: Record<OpTypes, string> = {
   color: "border-red-400",
@@ -306,6 +308,10 @@ export default function ContentStreamView(props: {
         </TabsContent>
       </Tabs>
     );
+  }
+
+  if (isICCProfile(props.contentStream)) {
+    return <ICCProfileView data={props.contentStream} />;
   }
 
   return (
