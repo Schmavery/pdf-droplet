@@ -19,6 +19,7 @@ import ObjectStmRefs from "@/components/app/ObjectStmRefs";
 import ContentStreamView from "@/components/app/ContentStreamView";
 import type { Page } from "@pdfjs/core/document";
 import type { SuspenseResource } from "@/lib/utils";
+import type { ModifiedStream } from "@/App";
 
 const ClearHighlightContext = React.createContext<() => void>(() => {});
 
@@ -263,7 +264,7 @@ export default function ObjectDetail(props: {
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
   page: SuspenseResource<Page>;
   expandPath?: string[];
-  onModifiedStream?: (bytes: Uint8Array | null) => void;
+  onModifiedStream?: (stream: ModifiedStream | null) => void;
 }) {
   const [activeExpandPath, setActiveExpandPath] = useState(props.expandPath);
   const clearHighlight = useCallback(

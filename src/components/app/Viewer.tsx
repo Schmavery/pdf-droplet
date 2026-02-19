@@ -8,6 +8,7 @@ import { FlateStream } from "@pdfjs/core/flate_stream";
 import { useMemo } from "react";
 import type { SuspenseResource } from "@/lib/utils";
 import type { Page } from "@pdfjs/core/document";
+import type { ModifiedStream } from "@/App";
 import github from "@/assets/github.svg";
 
 export function Viewer(props: {
@@ -15,7 +16,7 @@ export function Viewer(props: {
   objects: ObjectMap;
   currentObject?: ObjectEntry;
   page: SuspenseResource<Page>;
-  modifiedStream?: Uint8Array | null;
+  modifiedStream?: ModifiedStream | null;
   clearCurrentUpload: () => void;
 }) {
   const bytes = useMemo(() => {

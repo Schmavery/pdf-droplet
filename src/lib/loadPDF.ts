@@ -290,7 +290,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
 export async function loadRenderingDataForPage(
   doc: PDFDocument,
   pageIndex: number,
-  overrideStreamBytes?: Uint8Array,
+  streamOverride?: { ref: Ref; bytes: Uint8Array },
 ) {
   const page: Page = await doc.getPage(pageIndex);
   page.loadResources(RESOURCES_KEYS_OPERATOR_LIST);
@@ -351,15 +351,37 @@ export async function loadRenderingDataForPage(
       }
     },
   });
-  const contentStream = overrideStreamBytes
-    ? new Stream(overrideStreamBytes)
-    : await page.getContentStream();
-  const opList = new OperatorList();
-  await partialEvaluator.getOperatorList({
-    stream: contentStream,
-    task: { ensureNotTerminated() {} },
-    resources: page.resources,
-    operatorList: opList,
-  });
-  return opList;
+
+  if (streamOverride) {
+    const original = doc.xref.fetch(streamOverride.ref);
+    const origDict =
+      original instanceof FlateStream || original instanceof Stream
+        ? original.dict
+        : undefined;
+    if (origDict) {
+      doc.xref._streamOverrides.set(streamOverride.ref.num, {
+        bytes: streamOverride.bytes,
+        dict: origDict,
+      });
+    }
+  }
+
+  try {
+    const contentStream = await page.getContentStream();
+    // getContentStream() may return the same stream object across calls;
+    // reset its read position so re-renders don't get an empty stream.
+    contentStream.reset();
+    const opList = new OperatorList();
+    await partialEvaluator.getOperatorList({
+      stream: contentStream,
+      task: { ensureNotTerminated() {} },
+      resources: page.resources,
+      operatorList: opList,
+    });
+    return opList;
+  } finally {
+    if (streamOverride) {
+      doc.xref._streamOverrides.delete(streamOverride.ref.num);
+    }
+  }
 }

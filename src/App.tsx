@@ -32,6 +32,11 @@ type PageEntry = {
   operatorList: OperatorList;
 };
 
+export type ModifiedStream = {
+  ref: Ref;
+  bytes: Uint8Array;
+};
+
 type LoadedPdfState = {
   manager?: LocalPdfManager;
   pages: PageEntry[];
@@ -46,7 +51,7 @@ function AppWithLoadedFile(props: {
   breadcrumb: BreadcrumbEntry[];
   setBreadcrumb: (bc: BreadcrumbEntry[]) => void;
 }) {
-  const [modifiedStream, setModifiedStream] = useState<Uint8Array | null>(null);
+  const [modifiedStream, setModifiedStream] = useState<ModifiedStream | null>(null);
   const currentEntry = props.breadcrumb[props.breadcrumb.length - 1];
   const currentObject = currentEntry
     ? props.pdfState.objects.get(currentEntry.ref)

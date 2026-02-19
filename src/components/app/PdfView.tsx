@@ -11,12 +11,13 @@ import type { Page, PDFDocument } from "@pdfjs/core/document";
 import { CanvasGraphics } from "@pdfjs/display/canvas.js";
 import { PageViewport } from "@pdfjs/display/display_utils";
 import { type SuspenseResource } from "@/lib/utils";
+import type { ModifiedStream } from "@/App";
 
 function PdfViewForPage(props: {
   doc: PDFDocument;
   objects: ObjectMap;
   page: SuspenseResource<Page>;
-  modifiedStream?: Uint8Array | null;
+  modifiedStream?: ModifiedStream | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [renderErrors, setRenderErrors] = useState<string[]>([]);
@@ -140,7 +141,7 @@ export default function PdfView(props: {
   manager?: LocalPdfManager;
   page: SuspenseResource<Page>;
   objects: ObjectMap;
-  modifiedStream?: Uint8Array | null;
+  modifiedStream?: ModifiedStream | null;
 }) {
   const doc = props.manager?.pdfDocument;
   if (!doc) return <div>No document loaded</div>;

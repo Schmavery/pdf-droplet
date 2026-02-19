@@ -24,6 +24,7 @@ import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 import { Info } from "lucide-react";
+import type { ModifiedStream } from "@/App";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Suspense } from "react";
 import CMapView from "./CMapView";
@@ -516,7 +517,7 @@ export default function ContentStreamView(props: {
   contentStream: Uint8Array;
   page: SuspenseResource<Page>;
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
-  onModifiedStream?: (bytes: Uint8Array | null) => void;
+  onModifiedStream?: (stream: ModifiedStream | null) => void;
 }) {
   const isFormXObject =
     (props.entry.val instanceof Stream ||
@@ -526,6 +527,17 @@ export default function ContentStreamView(props: {
   const isPageContents =
     props.entry.backlinks?.find((backlink) => backlink.hint !== undefined)
       ?.hint === "Contents";
+
+  const { onModifiedStream } = props;
+  const entryRef = props.entry.ref;
+  const richViewOnModified = useMemo<
+    ((bytes: Uint8Array | null) => void) | undefined
+  >(() => {
+    if (!onModifiedStream || (!isPageContents && !isFormXObject))
+      return undefined;
+    return (bytes) =>
+      onModifiedStream(bytes ? { ref: entryRef, bytes } : null);
+  }, [onModifiedStream, isPageContents, isFormXObject, entryRef]);
 
   if (isFormXObject || isPageContents) {
     return (
@@ -543,7 +555,7 @@ export default function ContentStreamView(props: {
               entry={props.entry}
               page={props.page}
               onRefClick={props.onRefClick}
-              onModifiedStream={isPageContents ? props.onModifiedStream : undefined}
+              onModifiedStream={richViewOnModified}
             />
           </Suspense>
         </TabsContent>

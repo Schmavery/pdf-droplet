@@ -30,6 +30,7 @@ import {
   XRefParseException,
 } from "./core_utils.js";
 import { BaseStream } from "./base_stream.js";
+import { Stream } from "./stream.js";
 import { CipherTransformFactory } from "./crypto.js";
 
 /**
@@ -59,6 +60,8 @@ class XRef {
      * @type {Map<number, Dict | BaseStream | number | null | typeof CIRCULAR_REF>}
      */
     this._cacheMap = new Map(); // Prepare the XRef cache.
+    /** @type {Map<number, { bytes: Uint8Array, dict: import("./primitives.js").Dict }>} */
+    this._streamOverrides = new Map();
     this._pendingRefs = new RefSet();
     this._newPersistentRefNum = null;
     this._newTemporaryRefNum = null;
@@ -906,6 +909,11 @@ class XRef {
       throw new Error("ref object is not a reference");
     }
     const num = ref.num;
+
+    const override = this._streamOverrides.get(num);
+    if (override) {
+      return new Stream(override.bytes, 0, override.bytes.length, override.dict);
+    }
 
     // The XRef cache is populated with objects which are obtained through
     // `Parser.getObj`, and indirectly via `Lexer.getObj`. Neither of these
