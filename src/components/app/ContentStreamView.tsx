@@ -4,8 +4,11 @@ import {
 } from "@/components/ui/sharedtooltip";
 import {
   getOpDoc,
+  OP_CLOSE,
+  OP_OPEN,
   parseContentStream,
   printArgVal,
+  serializeOps,
   type ArgVal,
   type OpTypes,
   type ParsedOp,
@@ -19,7 +22,7 @@ import type { Page } from "@pdfjs/core/document";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Suspense } from "react";
 import CMapView from "./CMapView";
 import FontFileView from "./FontFileView";
@@ -168,20 +171,31 @@ const RichViewRow = React.memo(function RichViewRow(props: {
   entry: ObjectEntry;
   style?: React.CSSProperties;
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
+  disabled: boolean;
+  onToggle: () => void;
 }) {
-  // const { index, style } = props;
   const { showTooltip, hideTooltip } = useSharedTooltip();
   const op = props.parsedOps[props.index];
   const doc = getOpDoc(op.op);
   return (
     <li
-      style={{ ...props.style, marginLeft: `${op.indent / 2}em` }}
-      className={`odd:bg-gray-100 px-2 py-1 flex border-l-4 ${
+      style={{
+        ...props.style,
+        marginLeft: `${op.indent / 2}em`,
+        opacity: props.disabled ? 0.3 : undefined,
+      }}
+      className={`odd:bg-gray-100 px-2 py-1 flex items-start border-l-4 ${
         doc ? DocColorsBorder[doc.type] : "border-transparent"
       }`}
     >
+      <input
+        type="checkbox"
+        checked={!props.disabled}
+        onChange={props.onToggle}
+        className="mt-1 mr-1.5 flex-shrink-0 cursor-pointer accent-gray-500"
+      />
       {!doc && (
-        <div>
+        <div className={props.disabled ? "line-through" : undefined}>
           {op.args.map((v, i) => (
             <ArgVal
               key={i}
@@ -196,7 +210,7 @@ const RichViewRow = React.memo(function RichViewRow(props: {
         </div>
       )}
       {doc && (
-        <div className="flex gap-1">
+        <div className={`flex gap-1 ${props.disabled ? "line-through" : ""}`}>
           {op.args.map((v, i) => (
             <ArgVal
               key={i}
@@ -233,6 +247,7 @@ function RichView(props: {
   page: SuspenseResource<Page>;
   entry: ObjectEntry;
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
+  onModifiedStream?: (bytes: Uint8Array | null) => void;
 }) {
   const page = props.page.read();
   const resources = useMemo(
@@ -245,6 +260,7 @@ function RichView(props: {
     [props.contentStream],
   );
   const [visibleCount, setVisibleCount] = React.useState(100);
+  const [disabledOps, setDisabledOps] = useState<Set<number>>(new Set());
 
   const [, startTransition] = React.useTransition();
 
@@ -253,6 +269,52 @@ function RichView(props: {
       setVisibleCount(ops.length);
     });
   }, [ops.length]);
+
+  const { onModifiedStream } = props;
+  const opsRef = useRef(ops);
+  opsRef.current = ops;
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!onModifiedStream) return;
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      if (disabledOps.size === 0) return;
+    }
+    if (disabledOps.size === 0) {
+      onModifiedStream(null);
+    } else {
+      onModifiedStream(serializeOps(opsRef.current, disabledOps));
+    }
+  }, [disabledOps, onModifiedStream]);
+
+  const toggleOp = useCallback(
+    (index: number) => {
+      setDisabledOps((prev) => {
+        const next = new Set(prev);
+        const shouldDisable = !prev.has(index);
+
+        let start = index;
+        let end = index;
+
+        if (OP_OPEN.has(ops[index].op)) {
+          const openIndent = ops[index].indent;
+          for (let j = index + 1; j < ops.length; j++) {
+            if (ops[j].indent === openIndent && OP_CLOSE.has(ops[j].op)) {
+              end = j;
+              break;
+            }
+          }
+        }
+
+        for (let i = start; i <= end; i++) {
+          if (shouldDisable) next.add(i);
+          else next.delete(i);
+        }
+        return next;
+      });
+    },
+    [ops],
+  );
 
   return (
     <SharedTooltipProvider>
@@ -265,6 +327,8 @@ function RichView(props: {
             parsedOps={ops}
             resources={resources}
             onRefClick={props.onRefClick}
+            disabled={disabledOps.has(i)}
+            onToggle={() => toggleOp(i)}
           />
         ))}
       </ul>
@@ -277,6 +341,7 @@ export default function ContentStreamView(props: {
   contentStream: Uint8Array;
   page: SuspenseResource<Page>;
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
+  onModifiedStream?: (bytes: Uint8Array | null) => void;
 }) {
   if (
     ((props.entry.val instanceof Stream ||
@@ -301,6 +366,7 @@ export default function ContentStreamView(props: {
               entry={props.entry}
               page={props.page}
               onRefClick={props.onRefClick}
+              onModifiedStream={props.onModifiedStream}
             />
           </Suspense>
         </TabsContent>

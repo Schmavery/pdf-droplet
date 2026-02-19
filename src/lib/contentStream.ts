@@ -75,7 +75,7 @@ export function printArgVal(v: ArgVal): string {
     case "bytes":
       return `<${v.bytes.length} bytes>`;
     case "array":
-      return `[${v.contents.map(printArgVal).join(", ")}]`;
+      return `[${v.contents.map(printArgVal).join(" ")}]`;
     case "dict": {
       const parts = Object.entries(v.entries).map(
         ([k, val]) => `/${k} ${printArgVal(val)}`,
@@ -83,6 +83,63 @@ export function printArgVal(v: ArgVal): string {
       return `<< ${parts.join(" ")} >>`;
     }
   }
+}
+
+function toLatin1(str: string): Uint8Array {
+  const result = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    result[i] = str.charCodeAt(i) & 0xff;
+  }
+  return result;
+}
+
+/** Serialize parsed ops back to content-stream bytes, skipping disabled indices. */
+export function serializeOps(
+  ops: ParsedOp[],
+  disabledIndices: Set<number>,
+): Uint8Array {
+  const segments: Uint8Array[] = [];
+
+  for (let i = 0; i < ops.length; i++) {
+    if (disabledIndices.has(i)) continue;
+    const op = ops[i];
+
+    if (op.op === "BI") {
+      const dictArg = op.args[0];
+      if (dictArg?.type === "dict") {
+        const pairs = Object.entries(dictArg.entries)
+          .map(([k, v]) => `/${k} ${printArgVal(v)}`)
+          .join("\n");
+        segments.push(toLatin1(`BI\n${pairs}\n`));
+      } else {
+        segments.push(toLatin1("BI\n"));
+      }
+    } else if (op.op === "ID") {
+      segments.push(toLatin1("ID "));
+      const bytesArg = op.args[0];
+      if (bytesArg?.type === "bytes") {
+        segments.push(bytesArg.bytes);
+      }
+      segments.push(toLatin1("\n"));
+    } else if (op.op === "EI") {
+      segments.push(toLatin1("EI\n"));
+    } else {
+      const argsStr = op.args.map(printArgVal).join(" ");
+      segments.push(
+        toLatin1(argsStr ? `${argsStr} ${op.op}\n` : `${op.op}\n`),
+      );
+    }
+  }
+
+  let totalLength = 0;
+  for (const seg of segments) totalLength += seg.length;
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const seg of segments) {
+    result.set(seg, offset);
+    offset += seg.length;
+  }
+  return result;
 }
 
 const OP_DOCS: Record<string, DocEntry> = {
@@ -238,9 +295,8 @@ const OP_DOCS: Record<string, DocEntry> = {
   d1: { type: "text", doc: "glyph width & bbox (Type3)" },
 };
 
-// indentation based on these scopes
-const OP_OPEN = new Set(["q", "BT", "BDC", "BMC"]);
-const OP_CLOSE = new Set(["Q", "ET", "EMC"]);
+export const OP_OPEN = new Set(["q", "BT", "BDC", "BMC"]);
+export const OP_CLOSE = new Set(["Q", "ET", "EMC"]);
 
 function withIndent(
   raw: { op: string; args: ArgVal[]; imgLen?: number }[],

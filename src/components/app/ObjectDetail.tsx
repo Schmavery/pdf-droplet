@@ -263,6 +263,7 @@ export default function ObjectDetail(props: {
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
   page: SuspenseResource<Page>;
   expandPath?: string[];
+  onModifiedStream?: (bytes: Uint8Array | null) => void;
 }) {
   const [activeExpandPath, setActiveExpandPath] = useState(props.expandPath);
   const clearHighlight = useCallback(
@@ -366,6 +367,7 @@ export default function ObjectDetail(props: {
               entry={props.object}
               page={props.page}
               onRefClick={props.onRefClick}
+              onModifiedStream={props.onModifiedStream}
             />
           )}
           {val && !(val instanceof FlateStream) && val instanceof Stream && (
@@ -374,6 +376,7 @@ export default function ObjectDetail(props: {
               entry={props.object}
               page={props.page}
               onRefClick={props.onRefClick}
+              onModifiedStream={props.onModifiedStream}
             />
           )}
           {matchingObj && (

@@ -290,6 +290,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
 export async function loadRenderingDataForPage(
   doc: PDFDocument,
   pageIndex: number,
+  overrideStreamBytes?: Uint8Array,
 ) {
   const page: Page = await doc.getPage(pageIndex);
   page.loadResources(RESOURCES_KEYS_OPERATOR_LIST);
@@ -346,32 +347,17 @@ export async function loadRenderingDataForPage(
         if (type === "CopyLocalImage") {
           console.log("CopyLocalImage called:", id, type, data);
           return null;
-          // for (const page of doc.#pageCache.values()) {
-          //   // for (const pageProxy of this.#pageCache.values()) {
-          //   for (const [, data] of pageProxy.objs) {
-          //     if (data?.ref !== imageRef) {
-          //       continue;
-          //     }
-          //     if (!data.dataLen) {
-          //       return null;
-          //     }
-          //     PDF_COMMON_OBJECTS.resolve(id, structuredClone(data));
-          //     return data.dataLen;
-          //   }
-          // }
         }
       }
     },
   });
-  const contentStream = await page.getContentStream();
+  const contentStream = overrideStreamBytes
+    ? new Stream(overrideStreamBytes)
+    : await page.getContentStream();
   const opList = new OperatorList();
   await partialEvaluator.getOperatorList({
     stream: contentStream,
     task: { ensureNotTerminated() {} },
-    // resources: await page.getMergedResources(
-    //   ((await page.getContentStream()) as unknown as Stream).dict,
-    //   RESOURCES_KEYS_OPERATOR_LIST
-    // ),
     resources: page.resources,
     operatorList: opList,
   });

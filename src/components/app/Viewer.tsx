@@ -15,6 +15,7 @@ export function Viewer(props: {
   objects: ObjectMap;
   currentObject?: ObjectEntry;
   page: SuspenseResource<Page>;
+  modifiedStream?: Uint8Array | null;
   clearCurrentUpload: () => void;
 }) {
   const bytes = useMemo(() => {
@@ -55,6 +56,7 @@ export function Viewer(props: {
           objects={props.objects}
           manager={props.manager}
           page={props.page}
+          modifiedStream={props.modifiedStream}
         />
       </TabsContent>
       <TabsContent value="hex">

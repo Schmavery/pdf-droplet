@@ -46,11 +46,11 @@ function AppWithLoadedFile(props: {
   breadcrumb: BreadcrumbEntry[];
   setBreadcrumb: (bc: BreadcrumbEntry[]) => void;
 }) {
+  const [modifiedStream, setModifiedStream] = useState<Uint8Array | null>(null);
   const currentEntry = props.breadcrumb[props.breadcrumb.length - 1];
   const currentObject = currentEntry
     ? props.pdfState.objects.get(currentEntry.ref)
     : undefined;
-  console.log("Current object:", currentObject);
 
   const doc = props.pdfState.manager!.pdfDocument;
 
@@ -62,17 +62,23 @@ function AppWithLoadedFile(props: {
   const {
     pdfState: { objects },
     breadcrumb,
-    setBreadcrumb,
   } = props;
+  const navigateTo = useCallback(
+    (bc: BreadcrumbEntry[]) => {
+      props.setBreadcrumb(bc);
+      setModifiedStream(null);
+    },
+    [props.setBreadcrumb],
+  );
   const onRefClick = useCallback(
     (ref: Ref, expandPath?: string[]) => {
       const entry = objects.get(ref);
       console.log("Clicked ref:", ref, objects, entry);
       if (entry) {
-        setBreadcrumb([...breadcrumb, { ref: entry.ref, expandPath }]);
+        navigateTo([...breadcrumb, { ref: entry.ref, expandPath }]);
       }
     },
-    [objects, breadcrumb, setBreadcrumb],
+    [objects, breadcrumb, navigateTo],
   );
 
   return (
@@ -87,7 +93,7 @@ function AppWithLoadedFile(props: {
               <ObjectList
                 objects={props.pdfState.objects}
                 selectedObject={currentObject?.ref}
-                selectObject={(r) => props.setBreadcrumb([{ ref: r }])}
+                selectObject={(r) => navigateTo([{ ref: r }])}
               />
             </ResizablePanel>
             <ResizableHandle />
@@ -101,14 +107,14 @@ function AppWithLoadedFile(props: {
                 }
                 breadcrumb={props.breadcrumb.map((e) => e.ref)}
                 onBreadcrumbNavigate={(i) => {
-                  const newBreadcrumb = props.breadcrumb.slice(0, i + 1);
-                  props.setBreadcrumb(newBreadcrumb);
+                  navigateTo(props.breadcrumb.slice(0, i + 1));
                 }}
                 onRefClick={onRefClick}
                 object={currentObject}
                 objects={props.pdfState.objects}
                 page={pageResource}
                 expandPath={currentEntry?.expandPath}
+                onModifiedStream={setModifiedStream}
               />
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -120,6 +126,7 @@ function AppWithLoadedFile(props: {
             manager={props.pdfState.manager}
             currentObject={currentObject}
             page={pageResource}
+            modifiedStream={modifiedStream}
             clearCurrentUpload={() => {
               props.clear();
             }}
