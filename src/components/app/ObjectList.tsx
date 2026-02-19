@@ -31,20 +31,20 @@ function ListItem(props: {
         aria-selected={props.selected}
         onClick={props.onClick}
         className={
-          "rounded border border-solid border-gray-200 p-2 hover:bg-gray-50 aria-selected:bg-blue-200 w-full flex justify-between items-center"
+          "rounded border border-solid border-gray-200 p-2 hover:bg-gray-50 aria-selected:bg-blue-200 w-full flex items-start gap-2 text-left"
         }
       >
-        <div>
-          {props.entry.ref.toString()} - {getObjectType(props.entry)}
+        <div className="min-w-0 flex">
+          <span className="flex-shrink-0 whitespace-nowrap">{props.entry.ref.toString()} -&nbsp;</span>
+          <span>{getObjectType(props.entry)}</span>
         </div>
         {props.entry.fromObjStm && (
-          <div className="ml-auto">
+          <div className="flex-shrink-0 ml-auto">
             <Ghost className="inline" size={"20"} color="gray" />
           </div>
         )}
-        {/* TODO: maybe determine the actual size */}
         {!props.entry.fromObjStm && (
-          <div>{getObjectSizeString(props.entry)}</div>
+          <div className="flex-shrink-0 whitespace-nowrap ml-auto">{getObjectSizeString(props.entry)}</div>
         )}
       </button>
     </li>

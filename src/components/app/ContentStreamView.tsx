@@ -10,7 +10,8 @@ import {
   type OpTypes,
   type ParsedOp,
 } from "@/lib/contentStream";
-import { isICCProfile } from "@/lib/iccProfile";
+import { getFontFileHint, getCMapHint } from "@/lib/objectUtils";
+import { isCMap, isFontFile, isICCProfile } from "@/lib/streamDetection";
 import type { ObjectEntry } from "@/lib/loadPDF";
 import { type SuspenseResource } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
@@ -20,6 +21,8 @@ import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 import React, { useMemo } from "react";
 import { Suspense } from "react";
+import CMapView from "./CMapView";
+import FontFileView from "./FontFileView";
 import ICCProfileView from "./ICCProfileView";
 
 const DocColorsBorder: Record<OpTypes, string> = {
@@ -312,6 +315,42 @@ export default function ContentStreamView(props: {
 
   if (isICCProfile(props.contentStream)) {
     return <ICCProfileView data={props.contentStream} />;
+  }
+
+  if (
+    isFontFile(props.contentStream) ||
+    getFontFileHint(props.entry.backlinks)
+  ) {
+    return <FontFileView data={props.contentStream} />;
+  }
+
+  if (isCMap(props.contentStream) || getCMapHint(props.entry.backlinks)) {
+    return (
+      <Tabs defaultValue="rich">
+        <div className="flex items-center">
+          <TabsList className="flex gap-2 w-fit">
+            <TabsTrigger value="rich">CMap</TabsTrigger>
+            <TabsTrigger value="raw">Raw</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="rich">
+          <Suspense
+            fallback={
+              <div className="text-sm text-muted-foreground p-2">
+                Parsing CMap…
+              </div>
+            }
+          >
+            <CMapView data={props.contentStream} />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="raw">
+          <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
+            {new TextDecoder("utf-8").decode(props.contentStream)}
+          </pre>
+        </TabsContent>
+      </Tabs>
+    );
   }
 
   return (

@@ -1,4 +1,5 @@
 // Note: heavily gpted
+import { readHex } from "@/lib/utils";
 
 export type NumberVal = { type: "number"; value: number };
 export type BoolVal = { type: "bool"; value: boolean };
@@ -70,7 +71,7 @@ export function printArgVal(v: ArgVal): string {
     case "string":
       return `(${v.value})`;
     case "hex":
-      return `<${toHex(v.bytes)}>`;
+      return `<${readHex(v.bytes, 0, v.bytes.length)}>`;
     case "bytes":
       return `<${v.bytes.length} bytes>`;
     case "array":
@@ -634,13 +635,3 @@ function toOps(
   return out;
 }
 
-// ---------------------------- Utilities -------------------------------------
-
-function toHex(bytes: Uint8Array): string {
-  let s = "";
-  for (let i = 0; i < bytes.length; i++) {
-    const h = bytes[i].toString(16).padStart(2, "0");
-    s += h;
-  }
-  return s;
-}

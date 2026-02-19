@@ -362,7 +362,7 @@ export default function ObjectDetail(props: {
           )}
           {val && val instanceof FlateStream && (
             <ContentStreamView
-              contentStream={val.buffer}
+              contentStream={val.buffer.subarray(0, val.bufferLength)}
               entry={props.object}
               page={props.page}
               onRefClick={props.onRefClick}

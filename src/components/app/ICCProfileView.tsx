@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import {
-  isICCProfile,
   parseICCProfile,
   type CurveInfo,
   type ICCTag,
@@ -145,4 +144,3 @@ export default function ICCProfileView({
   );
 }
 
-export { isICCProfile };

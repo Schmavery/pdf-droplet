@@ -587,6 +587,14 @@ function parseCMapName(cMap, lexer) {
   }
 }
 
+/**
+ * Parse a CMap stream into a CMap object.
+ * @param {CMap} cMap - Target CMap instance to populate.
+ * @param {import("./parser.js").Lexer} lexer - Lexer wrapping the CMap stream.
+ * @param {Function|null} fetchBuiltInCMap - Callback to fetch built-in CMaps (may be null for embedded ToUnicode CMaps).
+ * @param {string|null} useCMap - Name of a parent CMap to extend, or null.
+ * @returns {Promise<CMap>}
+ */
 async function parseCMap(cMap, lexer, fetchBuiltInCMap, useCMap) {
   let previous, embeddedUseCMap;
   objLoop: while (true) {
@@ -715,4 +723,4 @@ class CMapFactory {
   }
 }
 
-export { CMap, CMapFactory, IdentityCMap };
+export { CMap, CMapFactory, IdentityCMap, parseCMap };

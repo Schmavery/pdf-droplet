@@ -52,13 +52,43 @@ function getSubroutineBias(subrs) {
 }
 
 function parseCmap(data, start, end) {
+  // Scan all encoding records for the best usable subtable.
+  // Preference: format 12 > 4 > 6 > 0
+  const numSubtables = readUint16(data, start + 2);
+  const candidates = { 0: -1, 4: -1, 6: -1, 12: -1 };
+  for (let s = 0; s < numSubtables; s++) {
+    const recOff = start + 4 + s * 8;
+    if (recOff + 8 > end) break;
+    const subtableOffset = readUint32(data, recOff + 4);
+    const absOff = start + subtableOffset;
+    if (absOff + 2 > data.length) continue;
+    const fmt = readUint16(data, absOff);
+    if (fmt in candidates && candidates[fmt] === -1) {
+      candidates[fmt] = subtableOffset;
+    }
+  }
+
   const offset =
-    readUint16(data, start + 2) === 1
-      ? readUint32(data, start + 8)
-      : readUint32(data, start + 16);
+    candidates[12] !== -1 ? candidates[12] :
+    candidates[4] !== -1 ? candidates[4] :
+    candidates[6] !== -1 ? candidates[6] :
+    candidates[0] !== -1 ? candidates[0] : -1;
+  if (offset === -1) {
+    throw new FormatError("No supported cmap subtable found");
+  }
+
   const format = readUint16(data, start + offset);
   let ranges, p, i;
-  if (format === 4) {
+
+  if (format === 0) {
+    // Byte encoding table: 256 bytes, each maps charCode → glyphId.
+    // Header: format(2) + length(2) + language(2) = 6 bytes, then 256 glyph IDs.
+    const ids = [];
+    for (i = 0; i < 256; i++) {
+      ids[i] = data[start + offset + 6 + i] || 0;
+    }
+    return [{ start: 0, end: 255, idDelta: 0, ids }];
+  } else if (format === 4) {
     readUint16(data, start + offset + 2); // length
     const segCount = readUint16(data, start + offset + 6) >> 1;
     p = start + offset + 14;
@@ -85,16 +115,25 @@ function parseCmap(data, start, end) {
       }
     }
     return ranges;
+  } else if (format === 6) {
+    // Trimmed table mapping: firstCode(2) + entryCount(2) + glyphIdArray
+    const firstCode = readUint16(data, start + offset + 6);
+    const entryCount = readUint16(data, start + offset + 8);
+    const ids = [];
+    for (i = 0; i < entryCount; i++) {
+      ids[i] = readUint16(data, start + offset + 10 + i * 2);
+    }
+    return [{ start: firstCode, end: firstCode + entryCount - 1, idDelta: 0, ids }];
   } else if (format === 12) {
     const groups = readUint32(data, start + offset + 12);
     p = start + offset + 16;
     ranges = [];
     for (i = 0; i < groups; i++) {
-      start = readUint32(data, p);
+      const rangeStart = readUint32(data, p);
       ranges.push({
-        start,
+        start: rangeStart,
         end: readUint32(data, p + 4),
-        idDelta: readUint32(data, p + 8) - start,
+        idDelta: readUint32(data, p + 8) - rangeStart,
       });
       p += 12;
     }
@@ -930,5 +969,13 @@ class FontRendererFactory {
     return new Type2Compiled(cff, cmap, font.fontMatrix);
   }
 }
+
+/**
+ * Binary search for a unicode code point in parsed cmap ranges.
+ * @param {{ start: number, end: number, idDelta: number, ids?: number[] }[]} ranges
+ * @param {string} unicode - Single unicode character
+ * @returns {{ charCode: number, glyphId: number }}
+ */
+export { lookupCmap };
 
 export { FontRendererFactory };

@@ -965,6 +965,170 @@ function createNameTable(name, proto) {
   return nameTable;
 }
 
+// ── Extracted sfnt helpers (moved from checkAndRepair for reuse) ─────────
+
+const VALID_TABLES = [
+  "OS/2",
+  "cmap",
+  "head",
+  "hhea",
+  "hmtx",
+  "maxp",
+  "name",
+  "post",
+  "loca",
+  "glyf",
+  "fpgm",
+  "prep",
+  "cvt ",
+  "CFF ",
+];
+
+/**
+ * Read a single entry from the sfnt table directory.
+ * @param {import("./stream.js").Stream} file
+ * @returns {{ tag: string, checksum: number, length: number, offset: number, data: Uint8Array }}
+ */
+function readTableEntry(file) {
+  const tag = file.getString(4);
+
+  const checksum = file.getInt32() >>> 0;
+  const offset = file.getInt32() >>> 0;
+  const length = file.getInt32() >>> 0;
+
+  // Read the table associated data
+  const previousPosition = file.pos;
+  file.pos = file.start || 0;
+  file.skip(offset);
+  const data = file.getBytes(length);
+  file.pos = previousPosition;
+
+  if (tag === "head") {
+    // clearing checksum adjustment
+    data[8] = data[9] = data[10] = data[11] = 0;
+    data[17] |= 0x20; // Set font optimized for cleartype flag.
+  }
+
+  return {
+    tag,
+    checksum,
+    length,
+    offset,
+    data,
+  };
+}
+
+/**
+ * Read all recognised sfnt table directory entries.
+ * @param {import("./stream.js").Stream} file
+ * @param {number} numTables
+ * @returns {Object<string, { tag: string, checksum: number, length: number, offset: number, data: Uint8Array } | null>}
+ */
+function readTables(file, numTables) {
+  const tables = Object.create(null);
+  tables["OS/2"] = null;
+  tables.cmap = null;
+  tables.head = null;
+  tables.hhea = null;
+  tables.hmtx = null;
+  tables.maxp = null;
+  tables.name = null;
+  tables.post = null;
+
+  for (let i = 0; i < numTables; i++) {
+    const table = readTableEntry(file);
+    if (!VALID_TABLES.includes(table.tag)) {
+      continue; // skipping table if it's not a required or optional table
+    }
+    if (table.length === 0) {
+      continue; // skipping empty tables
+    }
+    tables[table.tag] = table;
+  }
+  return tables;
+}
+
+/**
+ * Read the sfnt/OpenType header from a font stream.
+ * @param {import("./stream.js").Stream} ttf
+ * @returns {{ version: string, numTables: number, searchRange: number, entrySelector: number, rangeShift: number }}
+ */
+function readOpenTypeHeader(ttf) {
+  return {
+    version: ttf.getString(4),
+    numTables: ttf.getUint16(),
+    searchRange: ttf.getUint16(),
+    entrySelector: ttf.getUint16(),
+    rangeShift: ttf.getUint16(),
+  };
+}
+
+/**
+ * Parse the 'name' table from a font.
+ * Returns `[names, records]` where `names` is `[macNames[], winNames[]]`
+ * indexed by name ID, and `records` is the raw record list.
+ * @param {{ offset: number, length: number }} nameTable - Table directory entry for 'name'.
+ * @param {import("./stream.js").Stream} stream - The font stream to read from.
+ * @returns {[string[][], object[]]}
+ */
+function readNameTable(nameTable, stream) {
+  const start = (stream.start || 0) + nameTable.offset;
+  stream.pos = start;
+
+  const names = [[], []],
+    records = [];
+  const length = nameTable.length,
+    end = start + length;
+  const format = stream.getUint16();
+  const FORMAT_0_HEADER_LENGTH = 6;
+  if (format !== 0 || length < FORMAT_0_HEADER_LENGTH) {
+    // unsupported name table format or table "too" small
+    return [names, records];
+  }
+  const numRecords = stream.getUint16();
+  const stringsStart = stream.getUint16();
+  const NAME_RECORD_LENGTH = 12;
+  let i, ii;
+
+  for (i = 0; i < numRecords && stream.pos + NAME_RECORD_LENGTH <= end; i++) {
+    const r = {
+      platform: stream.getUint16(),
+      encoding: stream.getUint16(),
+      language: stream.getUint16(),
+      name: stream.getUint16(),
+      length: stream.getUint16(),
+      offset: stream.getUint16(),
+    };
+    // using only Macintosh and Windows platform/encoding names
+    if (isMacNameRecord(r) || isWinNameRecord(r)) {
+      records.push(r);
+    }
+  }
+  for (i = 0, ii = records.length; i < ii; i++) {
+    const record = records[i];
+    if (record.length <= 0) {
+      continue; // Nothing to process, ignoring.
+    }
+    const pos = start + stringsStart + record.offset;
+    if (pos + record.length > end) {
+      continue; // outside of name table, ignoring
+    }
+    stream.pos = pos;
+    const nameIndex = record.name;
+    if (record.encoding) {
+      // unicode
+      let str = "";
+      for (let j = 0, jj = record.length; j < jj; j += 2) {
+        str += String.fromCharCode(stream.getUint16());
+      }
+      names[1][nameIndex] = str;
+    } else {
+      names[0][nameIndex] = stream.getString(record.length);
+    }
+  }
+  return [names, records];
+}
+
 /**
  * 'Font' is the class the outside world should use, it encapsulate all the font
  * decoding logics whatever type it is (assuming the font type is supported).
@@ -1311,86 +1475,6 @@ class Font {
   }
 
   checkAndRepair(name, font, properties) {
-    const VALID_TABLES = [
-      "OS/2",
-      "cmap",
-      "head",
-      "hhea",
-      "hmtx",
-      "maxp",
-      "name",
-      "post",
-      "loca",
-      "glyf",
-      "fpgm",
-      "prep",
-      "cvt ",
-      "CFF ",
-    ];
-
-    function readTables(file, numTables) {
-      const tables = Object.create(null);
-      tables["OS/2"] = null;
-      tables.cmap = null;
-      tables.head = null;
-      tables.hhea = null;
-      tables.hmtx = null;
-      tables.maxp = null;
-      tables.name = null;
-      tables.post = null;
-
-      for (let i = 0; i < numTables; i++) {
-        const table = readTableEntry(file);
-        if (!VALID_TABLES.includes(table.tag)) {
-          continue; // skipping table if it's not a required or optional table
-        }
-        if (table.length === 0) {
-          continue; // skipping empty tables
-        }
-        tables[table.tag] = table;
-      }
-      return tables;
-    }
-
-    function readTableEntry(file) {
-      const tag = file.getString(4);
-
-      const checksum = file.getInt32() >>> 0;
-      const offset = file.getInt32() >>> 0;
-      const length = file.getInt32() >>> 0;
-
-      // Read the table associated data
-      const previousPosition = file.pos;
-      file.pos = file.start || 0;
-      file.skip(offset);
-      const data = file.getBytes(length);
-      file.pos = previousPosition;
-
-      if (tag === "head") {
-        // clearing checksum adjustment
-        data[8] = data[9] = data[10] = data[11] = 0;
-        data[17] |= 0x20; // Set font optimized for cleartype flag.
-      }
-
-      return {
-        tag,
-        checksum,
-        length,
-        offset,
-        data,
-      };
-    }
-
-    function readOpenTypeHeader(ttf) {
-      return {
-        version: ttf.getString(4),
-        numTables: ttf.getUint16(),
-        searchRange: ttf.getUint16(),
-        entrySelector: ttf.getUint16(),
-        rangeShift: ttf.getUint16(),
-      };
-    }
-
     function readTrueTypeCollectionHeader(ttc) {
       const ttcTag = ttc.getString(4);
       assert(ttcTag === "ttcf", "Must be a TrueType Collection font.");
@@ -1439,7 +1523,7 @@ class Font {
             'TrueType Collection font must contain a "name" table.'
           );
         }
-        const [nameTable] = readNameTable(potentialTables.name);
+        const [nameTable] = readNameTable(potentialTables.name, ttc);
 
         for (let j = 0, jj = nameTable.length; j < jj; j++) {
           for (let k = 0, kk = nameTable[j].length; k < kk; k++) {
@@ -2278,64 +2362,6 @@ class Font {
       return valid;
     }
 
-    function readNameTable(nameTable) {
-      const start = (font.start || 0) + nameTable.offset;
-      font.pos = start;
-
-      const names = [[], []],
-        records = [];
-      const length = nameTable.length,
-        end = start + length;
-      const format = font.getUint16();
-      const FORMAT_0_HEADER_LENGTH = 6;
-      if (format !== 0 || length < FORMAT_0_HEADER_LENGTH) {
-        // unsupported name table format or table "too" small
-        return [names, records];
-      }
-      const numRecords = font.getUint16();
-      const stringsStart = font.getUint16();
-      const NAME_RECORD_LENGTH = 12;
-      let i, ii;
-
-      for (i = 0; i < numRecords && font.pos + NAME_RECORD_LENGTH <= end; i++) {
-        const r = {
-          platform: font.getUint16(),
-          encoding: font.getUint16(),
-          language: font.getUint16(),
-          name: font.getUint16(),
-          length: font.getUint16(),
-          offset: font.getUint16(),
-        };
-        // using only Macintosh and Windows platform/encoding names
-        if (isMacNameRecord(r) || isWinNameRecord(r)) {
-          records.push(r);
-        }
-      }
-      for (i = 0, ii = records.length; i < ii; i++) {
-        const record = records[i];
-        if (record.length <= 0) {
-          continue; // Nothing to process, ignoring.
-        }
-        const pos = start + stringsStart + record.offset;
-        if (pos + record.length > end) {
-          continue; // outside of name table, ignoring
-        }
-        font.pos = pos;
-        const nameIndex = record.name;
-        if (record.encoding) {
-          // unicode
-          let str = "";
-          for (let j = 0, jj = record.length; j < jj; j += 2) {
-            str += String.fromCharCode(font.getUint16());
-          }
-          names[1][nameIndex] = str;
-        } else {
-          names[0][nameIndex] = font.getString(record.length);
-        }
-      }
-      return [names, records];
-    }
-
     // prettier-ignore
     const TTOpsStackDeltas = [
       0, 0, 0, 0, 0, 0, 0, 0, -2, -2, -2, -2, 0, 0, -2, -5,
@@ -3094,7 +3120,7 @@ class Font {
       };
     } else {
       // ... using existing 'name' table as prototype
-      const [namePrototype, nameRecords] = readNameTable(tables.name);
+      const [namePrototype, nameRecords] = readNameTable(tables.name, font);
 
       tables.name.data = createNameTable(name, namePrototype);
       this.psName = namePrototype[0][6] || null;
@@ -3604,4 +3630,16 @@ class ErrorFont {
   }
 }
 
-export { ErrorFont, Font };
+export {
+  ErrorFont,
+  Font,
+  isTrueTypeFile,
+  isTrueTypeCollectionFile,
+  isOpenTypeFile,
+  isType1File,
+  isCFFFile,
+  readOpenTypeHeader,
+  readTableEntry,
+  readTables,
+  readNameTable,
+};

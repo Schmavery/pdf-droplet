@@ -53,6 +53,7 @@ function AppWithLoadedFile(props: {
   console.log("Current object:", currentObject);
 
   const doc = props.pdfState.manager!.pdfDocument;
+
   const pageResource = useMemo(
     () => doc && createResource(doc.getPage(currentObject?.pageIndex ?? 0)),
     [doc, currentObject?.pageIndex],
@@ -93,9 +94,7 @@ function AppWithLoadedFile(props: {
             <ResizablePanel className="shadow border border-solid border-gray-200 rounded bg-white mb-2 ml-2">
               <ObjectDetail
                 key={
-                  (currentEntry
-                    ? currentEntry.ref.toString()
-                    : "no-object") +
+                  (currentEntry ? currentEntry.ref.toString() : "no-object") +
                   (currentEntry?.expandPath
                     ? `:${currentEntry.expandPath.join(".")}`
                     : "")

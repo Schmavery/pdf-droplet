@@ -1,4 +1,6 @@
 import { readUint16, readUint32 } from "@pdfjs/core/core_utils";
+import { isICCProfile } from "@/lib/streamDetection";
+import { readAscii, readHex } from "@/lib/utils";
 
 export interface ICCHeader {
   profileSize: number;
@@ -145,39 +147,6 @@ function readS15Fixed16(data: Uint8Array, offset: number): number {
     (data[offset + 2] << 8) |
     data[offset + 3];
   return val / 65536;
-}
-
-/** Read `length` bytes as printable ASCII, stripping non-printable chars. */
-function readAscii(data: Uint8Array, offset: number, length: number): string {
-  let s = "";
-  for (let i = 0; i < length; i++) {
-    const b = data[offset + i];
-    s += b >= 32 && b <= 126 ? String.fromCharCode(b) : "";
-  }
-  return s.trim();
-}
-
-/** Read `length` bytes as a lowercase hex string. */
-function readHex(data: Uint8Array, offset: number, length: number): string {
-  let s = "";
-  for (let i = 0; i < length; i++) {
-    s += data[offset + i].toString(16).padStart(2, "0");
-  }
-  return s;
-}
-
-/**
- * Returns true if the bytes look like a valid ICC profile
- * (checks for 'acsp' signature at offset 36).
- */
-export function isICCProfile(data: Uint8Array): boolean {
-  if (data.length < 128) return false;
-  return (
-    data[36] === 0x61 && // 'a'
-    data[37] === 0x63 && // 'c'
-    data[38] === 0x73 && // 's'
-    data[39] === 0x70 // 'p'
-  );
 }
 
 function parseTextTag(data: Uint8Array, offset: number, size: number): string {

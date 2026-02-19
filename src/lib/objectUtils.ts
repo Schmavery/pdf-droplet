@@ -73,6 +73,22 @@ export function getObjectType(val: ObjectEntry): string {
           const csName = n === 1 ? "Gray" : n === 3 ? "RGB" : "CMYK";
           return `${prefix(val)}ICC Profile (${csName})${suffix(val)}`;
         }
+        // Special case for embedded font files via backlink hint
+        const fontHint = val.backlinks?.find(
+          (b) =>
+            b.hint === "FontFile" ||
+            b.hint === "FontFile2" ||
+            b.hint === "FontFile3",
+        )?.hint;
+        if (fontHint) {
+          const fontType =
+            fontHint === "FontFile"
+              ? "Type 1"
+              : fontHint === "FontFile2"
+                ? "TrueType"
+                : "CFF/OpenType";
+          return `${prefix(val)}Font (${fontType})${suffix(val, fontHint)}`;
+        }
       }
       return `${prefix(val)}${val.val instanceof FlateStream ? "FlateStream" : "Stream"}${suffix(
         val,
@@ -83,6 +99,27 @@ export function getObjectType(val: ObjectEntry): string {
       return `${prefix(val)}unknown${suffix(val)}`;
   }
 }
+
+/** Check backlinks for ToUnicode / Encoding hints that indicate a CMap stream. */
+export function getCMapHint(
+  backlinks?: { ref: unknown; hint?: string }[],
+): string | undefined {
+  return backlinks?.find(
+    (b) => b.hint === "ToUnicode" || b.hint === "Encoding",
+  )?.hint;
+}
+
+/** Check backlinks for FontFile / FontFile2 / FontFile3 hints. */
+export function getFontFileHint(
+  backlinks?: { ref: unknown; hint?: string }[],
+): string | undefined {
+  return backlinks?.find(
+    (b) =>
+      b.hint === "FontFile" || b.hint === "FontFile2" || b.hint === "FontFile3",
+  )?.hint;
+}
+
+// ── Sort ────────────────────────────────────────────────────────────────
 
 export type SortValue = {
   row: "PAGE" | "SIZE" | "OBJ";
