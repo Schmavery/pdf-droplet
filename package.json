@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "build-nocheck": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "patch": "node scripts/patch.mjs"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.16",
