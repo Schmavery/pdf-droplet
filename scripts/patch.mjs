@@ -2,215 +2,278 @@
 import fs from "node:fs";
 import path from "node:path";
 
-function normalize(p) {
-  if (!p || p === "/dev/null") return null;
+function stripPrefix(p) {
+  if (!p) return null;
+  if (p === "/dev/null") return null;
   return p.replace(/^([ab])\//, "").trim();
 }
 
-function ensureDir(filePath) {
+function ensureDirForFile(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
-function readFileLines(p) {
-  if (!p || !fs.existsSync(p)) return [];
-  // keep exact contents except normalize line endings to LF
+function readLines(p) {
+  if (!fs.existsSync(p)) return [];
   return fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n").split("\n");
 }
 
-function writeFileLines(p, lines) {
-  ensureDir(p);
+function writeLines(p, lines) {
+  ensureDirForFile(p);
   fs.writeFileSync(p, lines.join("\n"), "utf8");
+}
+
+function eqLine(a, b) {
+  return a === b;
+}
+
+function parseHunkHeader(h) {
+  const m = h.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+  if (!m) throw new Error("Invalid hunk header: " + h);
+  return { oldStart: parseInt(m[1], 10) - 1 };
+}
+
+function tryApplyAt(lines, hunk, startIdx) {
+  const out = [...lines];
+  let i = startIdx;
+
+  for (const raw of hunk.lines) {
+    const prefix = raw[0];
+    const content = raw.slice(1);
+
+    if (prefix === " ") {
+      if (!eqLine(out[i] ?? "", content)) return null;
+      i++;
+    } else if (prefix === "-") {
+      if (!eqLine(out[i] ?? "", content)) return null;
+      out.splice(i, 1);
+    } else if (prefix === "+") {
+      out.splice(i, 0, content);
+      i++;
+    } else {
+      // ignore weird lines
+      return null;
+    }
+  }
+
+  return out;
+}
+
+function applyHunk(lines, hunk, filePath) {
+  const { oldStart } = parseHunkHeader(hunk.header);
+
+  // suggested position
+  {
+    const suggested = Math.min(Math.max(0, oldStart), lines.length);
+    const applied = tryApplyAt(lines, hunk, suggested);
+    if (applied) return applied;
+  }
+
+  // scan entire file for first context line anchor
+  const firstContext = hunk.lines.find(l => l[0] === " ");
+  if (firstContext) {
+    const anchor = firstContext.slice(1);
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] !== anchor) continue;
+      const applied = tryApplyAt(lines, hunk, i);
+      if (applied) return applied;
+    }
+  }
+
+  throw new Error(`Context mismatch in ${filePath}: ${hunk.header}`);
 }
 
 function parsePatch(text) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
-  const files = [];
-  let current = null;
-  let hunk = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith("diff --git")) {
-      if (current) files.push(current);
-      current = { oldPath: null, newPath: null, hunks: [] };
-      hunk = null;
+  const files = [];
+  let cur = null;
+  let curHunk = null;
+
+  const startFile = (aPath, bPath) => {
+    if (cur) files.push(cur);
+    cur = {
+      aPath: stripPrefix(aPath),
+      bPath: stripPrefix(bPath),
+      oldPath: null,
+      newPath: null,
+      renameFrom: null,
+      renameTo: null,
+      copyFrom: null,
+      copyTo: null,
+      isNew: false,
+      isDelete: false,
+      hunks: [],
+    };
+    curHunk = null;
+  };
+
+  for (const line of lines) {
+    const m = line.match(/^diff --git\s+(.+?)\s+(.+?)\s*$/);
+    if (m) {
+      startFile(m[1], m[2]);
       continue;
     }
-    if (!current) continue;
+    if (!cur) continue;
 
+    if (line.startsWith("new file mode ")) {
+      cur.isNew = true;
+      continue;
+    }
+    if (line.startsWith("deleted file mode ")) {
+      cur.isDelete = true;
+      continue;
+    }
+    if (line.startsWith("rename from ")) {
+      cur.renameFrom = line.slice("rename from ".length).trim();
+      continue;
+    }
+    if (line.startsWith("rename to ")) {
+      cur.renameTo = line.slice("rename to ".length).trim();
+      continue;
+    }
+    if (line.startsWith("copy from ")) {
+      cur.copyFrom = line.slice("copy from ".length).trim();
+      continue;
+    }
+    if (line.startsWith("copy to ")) {
+      cur.copyTo = line.slice("copy to ".length).trim();
+      continue;
+    }
     if (line.startsWith("--- ")) {
-      current.oldPath = normalize(line.slice(4));
+      cur.oldPath = stripPrefix(line.slice(4).trim());
       continue;
     }
     if (line.startsWith("+++ ")) {
-      current.newPath = normalize(line.slice(4));
+      cur.newPath = stripPrefix(line.slice(4).trim());
       continue;
     }
+
     if (line.startsWith("@@")) {
-      hunk = { header: line, lines: [] };
-      current.hunks.push(hunk);
+      curHunk = { header: line, lines: [] };
+      cur.hunks.push(curHunk);
       continue;
     }
-    if (hunk) {
-      // include lines beginning with ' ', '+', '-', or '\'
-      // keep '\ No newline at end of file' as-is (it won't start with space)
-      if (line === "\\ No newline at end of file") {
-        // attach marker to previous line by appending nothing (no-op)
-        // we will ignore this marker when matching to avoid strict mismatches
-        hunk.lines.push(line);
+    if (curHunk) {
+      if (line === "\\ No newline at end of file") continue;
+      // hunk lines begin with ' ', '+', '-'
+      if (line[0] === " " || line[0] === "+" || line[0] === "-") {
+        curHunk.lines.push(line);
       } else {
-        hunk.lines.push(line);
+        // Some patches can have empty lines represented as " " only; handle that:
+        if (line === "") curHunk.lines.push(" " + "");
       }
     }
   }
-  if (current) files.push(current);
+
+  if (cur) files.push(cur);
   return files;
 }
 
-function hunkBeforeSequence(hunk) {
-  return hunk.lines
-    .filter(l => l.length > 0 && (l[0] === " " || l[0] === "-"))
-    .map(l => (l[0] === " " || l[0] === "-") ? l.slice(1) : l);
-}
+function applyFileEntry(entry) {
+  // Determine old/new target paths.
+  // Priority:
+  // 1) explicit rename/copy
+  // 2) ---/+++ paths
+  // 3) diff --git header paths
+  const renameFrom = entry.renameFrom ? stripPrefix(entry.renameFrom) : null;
+  const renameTo = entry.renameTo ? stripPrefix(entry.renameTo) : null;
+  const copyFrom = entry.copyFrom ? stripPrefix(entry.copyFrom) : null;
+  const copyTo = entry.copyTo ? stripPrefix(entry.copyTo) : null;
 
-function hunkAfterSequence(hunk) {
-  return hunk.lines
-    .filter(l => l.length > 0 && (l[0] === " " || l[0] === "+"))
-    .map(l => (l[0] === " " || l[0] === "+") ? l.slice(1) : l);
-}
+  const oldPath =
+    renameFrom ??
+    copyFrom ??
+    entry.oldPath ??
+    entry.aPath;
 
-function applyHunkToLines(lines, hunk, filePath) {
-  const headerMatch = hunk.header.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-  if (!headerMatch) throw new Error("Invalid hunk header: " + hunk.header);
+  const newPath =
+    renameTo ??
+    copyTo ??
+    entry.newPath ??
+    entry.bPath;
 
-  const oldStart = parseInt(headerMatch[1], 10) - 1; // 0-based
-  // Build before/after sequences
-  const beforeSeq = hunkBeforeSequence(hunk);
-  const afterSeq = hunkAfterSequence(hunk);
+  const fullOld = oldPath ? path.join(process.cwd(), oldPath) : null;
+  const fullNew = newPath ? path.join(process.cwd(), newPath) : null;
 
-  // 1) Try exact position first (strict)
-  if (beforeSeq.length === 0) {
-    // Pure add hunk: try to insert at oldStart (or 0 if file is empty)
-    const insertAt = Math.min(Math.max(0, oldStart), lines.length);
-    const newLines = [...lines];
-    newLines.splice(insertAt, 0, ...afterSeq);
-    return newLines;
-  }
-
-  // strict match at suggested location
-  let suggestedStart = Math.min(Math.max(0, oldStart), Math.max(0, lines.length - beforeSeq.length));
-  let strictOk = true;
-  for (let j = 0; j < beforeSeq.length; j++) {
-    if ((lines[suggestedStart + j] ?? "") !== beforeSeq[j]) {
-      strictOk = false;
-      break;
+  // Rename-only / copy-only blocks (similarity 100%) might have no hunks.
+  if (renameFrom && renameTo) {
+    if (!fullOld || !fullNew) return;
+    if (!fs.existsSync(fullOld)) {
+      console.warn("Rename source missing:", oldPath);
+    } else {
+      ensureDirForFile(fullNew);
+      fs.renameSync(fullOld, fullNew);
+      console.log("Renamed", oldPath, "->", newPath);
     }
-  }
-  if (strictOk) {
-    const result = [...lines];
-    result.splice(suggestedStart, beforeSeq.length, ...afterSeq);
-    return result;
+    // if hunks also exist (rare), we'll apply them below to the new path.
   }
 
-  // 2) Sliding window search: find any index where beforeSeq matches exactly
-  for (let i = 0; i <= lines.length - beforeSeq.length; i++) {
-    let ok = true;
-    for (let j = 0; j < beforeSeq.length; j++) {
-      if ((lines[i + j] ?? "") !== beforeSeq[j]) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) {
-      const result = [...lines];
-      result.splice(i, beforeSeq.length, ...afterSeq);
-      return result;
+  if (copyFrom && copyTo) {
+    if (!fullOld || !fullNew) return;
+    if (!fs.existsSync(fullOld)) {
+      console.warn("Copy source missing:", oldPath);
+    } else {
+      ensureDirForFile(fullNew);
+      fs.copyFileSync(fullOld, fullNew);
+      console.log("Copied", oldPath, "->", newPath);
     }
   }
 
-  // 3) Fallback heuristics: try fuzzy match by matching subset of beforeSeq (head or tail)
-  // Try to match last N lines of beforeSeq
-  const minMatch = Math.max(1, Math.floor(beforeSeq.length / 2));
-  // tail match
-  for (let matchLen = beforeSeq.length; matchLen >= minMatch; matchLen--) {
-    const tail = beforeSeq.slice(beforeSeq.length - matchLen);
-    for (let i = 0; i <= lines.length - matchLen; i++) {
-      let ok = true;
-      for (let j = 0; j < matchLen; j++) {
-        if ((lines[i + j] ?? "") !== tail[j]) { ok = false; break; }
-      }
-      if (ok) {
-        const result = [...lines];
-        // Remove matchLen lines and insert afterSeq (best-effort)
-        result.splice(i, matchLen, ...afterSeq);
-        console.warn(`Applied hunk to approximate location in ${filePath} (tail-match of ${matchLen}/${beforeSeq.length})`);
-        return result;
-      }
+  if (entry.isDelete || (oldPath && !newPath)) {
+    if (fullOld && fs.existsSync(fullOld)) {
+      fs.unlinkSync(fullOld);
+      console.log("Deleted", oldPath);
     }
+    return;
   }
 
-  // If nothing works, throw with debug info
-  const debug = [
-    `Hunk header: ${hunk.header}`,
-    `File: ${filePath}`,
-    `Wanted before seq (len ${beforeSeq.length}):`,
-    ...beforeSeq.slice(0, 10).map((l, idx) => `${idx}: ${JSON.stringify(l)}`)
-  ].join("\n");
-  throw new Error("Context mismatch\n" + debug);
+  // Apply hunks if present.
+  if (!entry.hunks.length) {
+    // nothing else to do (rename/copy already handled)
+    return;
+  }
+
+  const target = fullNew || fullOld;
+  const targetRel = newPath || oldPath || "(unknown)";
+  if (!target) {
+    console.warn("Skipping a file with no target:", targetRel);
+    return;
+  }
+
+  // If it's a new file (or old was /dev/null), start empty.
+  let contentLines = [];
+  const treatAsCreate = entry.isNew || entry.oldPath === null;
+
+  if (!treatAsCreate && fs.existsSync(target)) {
+    contentLines = readLines(target);
+  }
+
+  for (const hunk of entry.hunks) {
+    contentLines = applyHunk(contentLines, hunk, targetRel);
+  }
+
+  writeLines(target, contentLines);
+  console.log(treatAsCreate ? "Created/Updated" : "Updated", targetRel);
 }
 
 function applyPatchFile(patchPath) {
   const text = fs.readFileSync(patchPath, "utf8");
-  const files = parsePatch(text);
+  const entries = parsePatch(text);
 
-  for (const file of files) {
-    const oldPath = file.oldPath;
-    const newPath = file.newPath;
-    const isCreate = !oldPath && newPath;
-    const isDelete = oldPath && !newPath;
-    const targetRel = newPath || oldPath;
-    if (!targetRel) {
-      console.warn("Skipping a file with no paths in patch");
-      continue;
-    }
-
-    const fullPath = path.join(process.cwd(), targetRel);
-
-    if (isDelete) {
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
-        console.log("Deleted", targetRel);
-      } else {
-        console.warn("Delete requested but file missing:", targetRel);
-      }
-      continue;
-    }
-
-    let lines = isCreate ? [] : readFileLines(fullPath);
-
-    for (const hunk of file.hunks) {
-      try {
-        lines = applyHunkToLines(lines, hunk, targetRel);
-      } catch (err) {
-        console.error(`Failed to apply hunk for ${targetRel}: ${err.message}`);
-        // Optionally show a snippet for debugging
-        const preview = lines.slice(0, 20).map((l, i) => `${i + 1}: ${l}`).join("\n");
-        console.error("File preview (first 20 lines):\n" + preview);
-        throw err;
-      }
-    }
-
-    writeFileLines(fullPath, lines);
-    console.log(isCreate ? "Created" : "Updated", targetRel);
+  for (const e of entries) {
+    applyFileEntry(e);
   }
-
   console.log("Done.");
 }
 
-if (process.argv.length < 3) {
-  console.error("Usage: patch.mjs <patch-file1> [patch-file2 ...]");
+const args = process.argv.slice(2);
+if (args.length === 0) {
+  console.error("Usage: node scripts/patch.mjs <patch-file1> [patch-file2 ...]");
   process.exit(1);
 }
 
-const patchFiles = process.argv.slice(2);
-for (const p of patchFiles) applyPatchFile(p);
+for (const p of args) {
+  applyPatchFile(p);
+  fs.unlinkSync(p);
+  console.log("Deleted patch file", p);
+}

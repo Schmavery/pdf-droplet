@@ -17,9 +17,10 @@ export function HexView(props: {
   data: ArrayBuffer | Uint8Array;
   bytesPerRow?: number;
   highlights?: HighlightRange[];
+  hideAscii?: boolean;
 }) {
   console.log(props);
-  const { data, bytesPerRow = 16, highlights = [] } = props;
+  const { data, bytesPerRow = 16, highlights = [], hideAscii = false } = props;
   const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
   const rowCount = Math.ceil(bytes.length / bytesPerRow);
   const listRef = useListRef(null);
@@ -40,7 +41,15 @@ export function HexView(props: {
       : defaultColor;
 
   const Row = (props: RowComponentProps) => {
-    const start = props.index * bytesPerRow;
+    if (hideAscii && props.index === 0) {
+      return (
+        <div style={props.style} className="text-[10px] font-mono text-muted-foreground select-none px-1">
+          hex
+        </div>
+      );
+    }
+    const rowIndex = hideAscii ? props.index - 1 : props.index;
+    const start = rowIndex * bytesPerRow;
     const slice = bytes.slice(start, start + bytesPerRow);
 
     const renderGroup = (
@@ -87,6 +96,21 @@ export function HexView(props: {
       { defaultColor: "text-accent-foreground", spacer: true },
       (b) => b.toString(16).padStart(2, "0")
     );
+
+    if (hideAscii) {
+      return (
+        <div
+          style={props.style}
+          className="font-mono text-sm whitespace-pre flex justify-around max-w-2xl"
+        >
+          <span className="hidden @xl:inline w-12 text-right pr-2 select-none text-blue-800">
+            {start.toString(16)}
+          </span>
+          <div>{hexSpans}</div>
+        </div>
+      );
+    }
+
     const asciiSpans = renderGroup(
       { defaultColor: "text-muted-foreground", spacer: false },
       (b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ".")
@@ -132,7 +156,7 @@ export function HexView(props: {
       className="p-2 bg-muted rounded-md border @container"
       listRef={listRef}
       rowComponent={Row}
-      rowCount={rowCount}
+      rowCount={hideAscii ? rowCount + 1 : rowCount}
       rowHeight={rowHeight}
       rowProps={{}}
     />

@@ -16,6 +16,8 @@ export const PDF_OBJS = new PDFObjects();
 export type PDFVal =
   | Dict
   | BaseStream
+  | FlateStream
+  | Stream
   | null
   | number
   | string
@@ -160,7 +162,7 @@ export function loadAllObjects(doc: PDFDocument, stream: Stream): ObjectMap {
       // PDFjs uses incremental generations on entries that are compressed
       const ref = new Ref(refNum, xrefEntry?.uncompressed ? value.gen : 0);
       const val = doc.xref.fetch(ref);
-      if (val instanceof Stream || val instanceof FlateStream) {
+      if (val instanceof BaseStream) {
         val.getBytes();
       }
 
@@ -302,7 +304,7 @@ export async function loadRenderingDataForPage(
       console.log(`Received exported data for send("${handler}")'`, args);
       if (handler == "commonobj") {
         const [id, type, data] = args[0] as [string, string, object];
-        if ("error" in data) {
+        if (data && "error" in data) {
           const exportedError = data.error;
           console.warn(`Error during font loading: ${exportedError}`);
           PDF_COMMON_OBJECTS.resolve(id, exportedError);

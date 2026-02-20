@@ -2,6 +2,21 @@
  * Detection helpers for identifying the type of a PDF stream's content.
  */
 import { readUint32 } from "@pdfjs/core/core_utils";
+import { FlateStream } from "@pdfjs/core/flate_stream";
+import { Name } from "@pdfjs/core/primitives";
+import { Stream } from "@pdfjs/core/stream";
+import type { PDFVal } from "@/lib/loadPDF";
+
+// ── Images ──────────────────────────────────────────────────────────────
+
+/** Check if a stream value is an Image XObject (Subtype /Image in its dict). */
+export function isImageXObject(val: PDFVal): val is FlateStream | Stream {
+  if (!(val instanceof FlateStream) && !(val instanceof Stream)) return false;
+  const dict = val.dict;
+  if (!dict) return false;
+  const subtype = dict.get("Subtype");
+  return subtype instanceof Name && subtype.name === "Image";
+}
 
 // ── ICC profiles ────────────────────────────────────────────────────────
 

@@ -1,10 +1,10 @@
 import React, { useCallback, useContext, useState } from "react";
 import {
-  PDF_OBJS,
   type ObjectEntry,
   type ObjectMap,
   type PDFVal,
 } from "@/lib/loadPDF";
+import { BaseStream } from "@pdfjs/core/base_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Ref } from "@pdfjs/core/primitives";
 import ObjectBacklinks from "./ObjectBacklinks";
@@ -16,12 +16,41 @@ import {
 import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import { Stream } from "@pdfjs/core/stream";
 import ObjectStmRefs from "@/components/app/ObjectStmRefs";
-import ContentStreamView from "@/components/app/ContentStreamView";
+import ContentStreamView from "@/components/app/detail/ContentStreamView";
 import type { Page } from "@pdfjs/core/document";
 import type { SuspenseResource } from "@/lib/utils";
 import type { ModifiedStream } from "@/App";
 
+function isBinaryString(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x20 || c > 0x7e) return true;
+  }
+  return false;
+}
+
+function stringToHex(s: string): string {
+  return Array.from(s, (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+}
+
 const ClearHighlightContext = React.createContext<() => void>(() => {});
+
+const Caret = ({ open }: { open: boolean }) => (
+  <svg
+    viewBox="0 0 12 12"
+    className={`w-3 h-3 shrink-0 transition-transform duration-200 select-none ${open ? "rotate-0" : "-rotate-90"}`}
+    aria-hidden="true"
+  >
+    <polyline
+      points="3,5 6,8 9,5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 function DictEntryRow({
   keyLabel,
@@ -45,7 +74,6 @@ function DictEntryRow({
   const [open, setOpen] = React.useState(shouldAutoExpand ?? false);
   const clearHighlight = useContext(ClearHighlightContext);
 
-  // Helper for summary
   let summary = null;
   if (!open && isNested) {
     if (val instanceof Dict) {
@@ -61,101 +89,57 @@ function DictEntryRow({
 
   if (isNested) {
     return (
-      <li
-        style={{ marginBottom: 4 }}
-        className={isHighlighted ? "bg-blue-200 rounded" : undefined}
+      <tr
+        className={`border-b border-gray-100 last:border-b-0 ${isHighlighted ? "bg-blue-100" : ""}`}
       >
-        <Collapsible
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (expandPath?.length !== 0) clearHighlight();
-          }}
-        >
-          <CollapsibleTrigger
-            asChild
-            style={{ background: "none", border: "none", padding: 0 }}
+        <td colSpan={2} className="py-0.5 align-top">
+          <Collapsible
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (expandPath?.length !== 0) clearHighlight();
+            }}
           >
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                fontWeight: "bold",
-                fontFamily: "monospace",
-                fontSize: 14,
-                cursor: "pointer",
-                userSelect: "text",
-              }}
-            >
-              <span
-                className="caret"
-                style={{
-                  display: "inline-block",
-                  transition: "transform 0.2s",
-                  marginRight: 4,
-                  width: 12,
-                  height: 12,
-                  transform: open ? "rotate(0deg)" : "rotate(-90deg)",
-                  userSelect: "none",
-                }}
-                aria-hidden="true"
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 font-mono text-sm cursor-pointer select-text hover:text-blue-600 transition-colors"
               >
-                <svg
-                  viewBox="0 0 12 12"
-                  width="12"
-                  height="12"
-                  style={{ verticalAlign: "middle", userSelect: "none" }}
-                >
-                  <polyline
-                    points="3,5 6,8 9,5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              {keyLabel}:
-              {summary && (
-                <span style={{ color: "#888", marginLeft: 6 }}>{summary}</span>
-              )}
-            </span>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div style={{ marginLeft: 16 }}>
-              {renderValue(
-                val,
-                depth,
-                onRefClick,
-                shouldAutoExpand ? expandPath?.slice(1) : undefined,
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </li>
-    );
-  } else {
-    return (
-      <li
-        style={{ marginBottom: 4 }}
-        className={isHighlighted ? "bg-blue-200 rounded" : undefined}
-      >
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            fontWeight: "bold",
-            fontFamily: "monospace",
-            fontSize: 14,
-            userSelect: "text",
-          }}
-        >
-          {keyLabel}: {renderValue(val, depth, onRefClick)}
-        </span>
-      </li>
+                <Caret open={open} />
+                <span className="text-muted-foreground font-semibold">{keyLabel}</span>
+                {summary && (
+                  <span className="text-muted-foreground/60 text-xs ml-1">{summary}</span>
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="ml-4">
+                {renderValue(
+                  val,
+                  depth,
+                  onRefClick,
+                  shouldAutoExpand ? expandPath?.slice(1) : undefined,
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </td>
+      </tr>
     );
   }
+
+  return (
+    <tr
+      className={`border-b border-gray-100 last:border-b-0 ${isHighlighted ? "bg-blue-100" : ""}`}
+    >
+      <td className="py-1 pr-3 text-muted-foreground font-semibold font-mono text-sm whitespace-nowrap align-top select-text">
+        {keyLabel}
+      </td>
+      <td className="py-1 font-mono text-sm break-all select-text">
+        {renderValue(val, depth, onRefClick)}
+      </td>
+    </tr>
+  );
 }
 
 function renderValue(
@@ -188,15 +172,7 @@ function renderValue(
     return (
       <button
         type="button"
-        style={{
-          color: "#007bff",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          textDecoration: "underline",
-          fontFamily: "monospace",
-          fontSize: 14,
-        }}
+        className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-500 transition-colors font-mono text-sm cursor-pointer"
         aria-label={`Select object ${val.toString()}`}
         onClick={() => onRefClick?.(val)}
       >
@@ -213,6 +189,9 @@ function renderValue(
         expandPath={expandPath}
       />
     );
+  }
+  if (typeof val === "string" && isBinaryString(val)) {
+    return <span>&lt;{stringToHex(val)}&gt;</span>;
   }
   return <span>{val?.toString()}</span>;
 }
@@ -232,27 +211,29 @@ function DictEntries(props: {
       : [];
 
   return (
-    <ul style={{ listStyle: "none", paddingLeft: depth * 16 }}>
-      {entries.map(([key, val]) => {
-        const isNested =
-          val instanceof Dict ||
-          Array.isArray(val) ||
-          val instanceof FlateStream;
-        const keyLabel = dict ? key.toString() : `[${key}]`;
-        return (
-          <DictEntryRow
-            key={keyLabel}
-            keyLabel={keyLabel}
-            val={val}
-            depth={depth}
-            isNested={isNested}
-            dict={dict}
-            onRefClick={onRefClick}
-            expandPath={expandPath}
-          />
-        );
-      })}
-    </ul>
+    <table className="w-full">
+      <tbody>
+        {entries.map(([key, val]) => {
+          const isNested =
+            val instanceof Dict ||
+            Array.isArray(val) ||
+            val instanceof FlateStream;
+          const keyLabel = dict ? key.toString() : `[${key}]`;
+          return (
+            <DictEntryRow
+              key={keyLabel}
+              keyLabel={keyLabel}
+              val={val}
+              depth={depth}
+              isNested={isNested}
+              dict={dict}
+              onRefClick={onRefClick}
+              expandPath={expandPath}
+            />
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -273,21 +254,10 @@ export default function ObjectDetail(props: {
   );
 
   const val = props.object?.val;
-  if (val instanceof FlateStream) {
+  if (val instanceof BaseStream) {
     val.getBytes();
   }
-  console.log("Rendering ObjectDetail for object:", props.object, [
-    ...PDF_OBJS,
-  ]);
-
   const objStmNum = props.object?.fromObjStm;
-  const matchingObj = [...PDF_OBJS].find(([, obj]) => {
-    return (
-      obj?.ref?.toString() === props.object?.ref.toString() &&
-      obj?.bitmap &&
-      obj?.bitmap instanceof ImageBitmap
-    );
-  })?.[1] as { bitmap: ImageBitmap } | undefined;
 
   return (
     <ClearHighlightContext.Provider value={clearHighlight}>
@@ -302,15 +272,7 @@ export default function ObjectDetail(props: {
             Extracted from ObjStm&nbsp;
             <button
               type="button"
-              style={{
-                color: "#007bff",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                textDecoration: "underline",
-                fontFamily: "monospace",
-                fontSize: 14,
-              }}
+              className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-500 transition-colors font-mono text-sm cursor-pointer"
               onClick={() => props.onRefClick(objStmNum)}
             >
               {objStmNum.toString()}
@@ -354,55 +316,76 @@ export default function ObjectDetail(props: {
               {val === "" ? '""' : val}
             </span>
           )}
-          {val && typeof val === "object" && "dict" in val && (
-            <DictEntries
-              dict={(val as unknown as Stream).dict}
-              depth={0}
-              onRefClick={props.onRefClick}
-              expandPath={activeExpandPath}
-            />
-          )}
           {val && val instanceof FlateStream && (
             <ContentStreamView
               contentStream={val.buffer.subarray(0, val.bufferLength)}
               entry={props.object}
+              objects={props.objects}
               page={props.page}
               onRefClick={props.onRefClick}
               onModifiedStream={props.onModifiedStream}
+              dictContent={
+                val.dict ? (
+                  <DictEntries
+                    dict={val.dict}
+                    depth={0}
+                    onRefClick={props.onRefClick}
+                    expandPath={activeExpandPath}
+                  />
+                ) : undefined
+              }
             />
           )}
           {val && !(val instanceof FlateStream) && val instanceof Stream && (
             <ContentStreamView
               contentStream={val.bytes.slice(val.start, val.end)}
               entry={props.object}
+              objects={props.objects}
               page={props.page}
               onRefClick={props.onRefClick}
               onModifiedStream={props.onModifiedStream}
+              dictContent={
+                val.dict ? (
+                  <DictEntries
+                    dict={val.dict}
+                    depth={0}
+                    onRefClick={props.onRefClick}
+                    expandPath={activeExpandPath}
+                  />
+                ) : undefined
+              }
             />
           )}
-          {matchingObj && (
-            <div style={{ marginTop: 16 }}>
-              <h3 className="font-bold mb-2">Rendered Image:</h3>
-              <canvas
-                width={matchingObj.bitmap.width}
-                height={matchingObj.bitmap.height}
-                style={{ border: "1px solid #ccc" }}
-                ref={(canvas) => {
-                  if (canvas) {
-                    const ctx = canvas.getContext("2d");
-                    if (ctx) {
-                      ctx.drawImage(matchingObj.bitmap, 0, 0);
-                    }
-                  }
-                }}
-              />
-            </div>
+          {val &&
+            !(val instanceof FlateStream) &&
+            !(val instanceof Stream) &&
+            val instanceof BaseStream && (
+            <ContentStreamView
+              contentStream={"buffer" in val && "bufferLength" in val
+                ? (val.buffer as Uint8Array).subarray(0, val.bufferLength as number)
+                : val.getBytes()}
+              entry={props.object}
+              objects={props.objects}
+              page={props.page}
+              onRefClick={props.onRefClick}
+              onModifiedStream={props.onModifiedStream}
+              dictContent={
+                "dict" in val && val.dict ? (
+                  <DictEntries
+                    dict={val.dict as Dict}
+                    depth={0}
+                    onRefClick={props.onRefClick}
+                    expandPath={activeExpandPath}
+                  />
+                ) : undefined
+              }
+            />
           )}
 
           {/* Fallback for other primitives */}
           {!(val instanceof Dict) &&
             !Array.isArray(val) &&
-            !(val && typeof val === "object" && "dict" in val) &&
+            !(val instanceof BaseStream) &&
             typeof val !== "string" && (
               <span style={{ fontFamily: "monospace", fontSize: 14 }}>
                 {String(val)}

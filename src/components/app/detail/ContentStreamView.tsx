@@ -14,12 +14,13 @@ import {
   type OpTypes,
   type ParsedOp,
 } from "@/lib/contentStream";
-import { getFontFileHint, getCMapHint } from "@/lib/objectUtils";
-import { isCMap, isFontFile, isICCProfile } from "@/lib/streamDetection";
-import type { ObjectEntry } from "@/lib/loadPDF";
+import { getFontFileHint, getCMapHint, getCIDSetHint } from "@/lib/objectUtils";
+import { isCMap, isFontFile, isICCProfile, isImageXObject } from "@/lib/streamDetection";
+import type { ObjectEntry, ObjectMap } from "@/lib/loadPDF";
 import { type SuspenseResource } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
 import type { Page } from "@pdfjs/core/document";
+import { BaseStream } from "@pdfjs/core/base_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
@@ -30,6 +31,11 @@ import { Suspense } from "react";
 import CMapView from "./CMapView";
 import FontFileView from "./FontFileView";
 import ICCProfileView from "./ICCProfileView";
+import CIDSetView from "./CIDSetView";
+import { HexView } from "./HexViewVirt";
+import ImageView from "./ImageView";
+import ObjStmView from "./ObjStmView";
+import XRefView from "./XRefView";
 
 const DocColorsBg: Record<OpTypes, string> = {
   color: "bg-red-400",
@@ -515,9 +521,11 @@ function RichView(props: {
 export default function ContentStreamView(props: {
   entry: ObjectEntry;
   contentStream: Uint8Array;
+  objects: ObjectMap;
   page: SuspenseResource<Page>;
   onRefClick: (ref: Ref, expandPath?: string[]) => void;
   onModifiedStream?: (stream: ModifiedStream | null) => void;
+  dictContent?: React.ReactNode;
 }) {
   const isFormXObject =
     (props.entry.val instanceof Stream ||
@@ -539,78 +547,120 @@ export default function ContentStreamView(props: {
       onModifiedStream(bytes ? { ref: entryRef, bytes } : null);
   }, [onModifiedStream, isPageContents, isFormXObject, entryRef]);
 
+  let richLabel: string | undefined;
+  let richContent: React.ReactNode | undefined;
+
   if (isFormXObject || isPageContents) {
-    return (
-      <Tabs defaultValue="rich">
-        <div className="flex items-center">
-          <TabsList className="flex gap-2 w-fit">
-            <TabsTrigger value="rich">Content Stream</TabsTrigger>
-            <TabsTrigger value="raw">Raw</TabsTrigger>
-          </TabsList>
-        </div>
-        <TabsContent value="rich">
-          <Suspense fallback={<div>Loading?...</div>}>
-            <RichView
-              contentStream={props.contentStream}
-              entry={props.entry}
-              page={props.page}
-              onRefClick={props.onRefClick}
-              onModifiedStream={richViewOnModified}
-            />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="raw">
-          <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
-            {new TextDecoder("utf-8").decode(props.contentStream)}
-          </pre>
-        </TabsContent>
-      </Tabs>
+    richLabel = "Content Stream";
+    richContent = (
+      <Suspense fallback={<div>Loading?...</div>}>
+        <RichView
+          contentStream={props.contentStream}
+          entry={props.entry}
+          page={props.page}
+          onRefClick={props.onRefClick}
+          onModifiedStream={richViewOnModified}
+        />
+      </Suspense>
     );
-  }
-
-  if (isICCProfile(props.contentStream)) {
-    return <ICCProfileView data={props.contentStream} />;
-  }
-
-  if (
+  } else if (isICCProfile(props.contentStream)) {
+    richLabel = "ICC Profile";
+    richContent = <ICCProfileView data={props.contentStream} />;
+  } else if (
     isFontFile(props.contentStream) ||
     getFontFileHint(props.entry.backlinks)
   ) {
-    return <FontFileView data={props.contentStream} />;
+    richLabel = "Font";
+    richContent = <FontFileView data={props.contentStream} />;
+  } else if (
+    isCMap(props.contentStream) ||
+    getCMapHint(props.entry.backlinks)
+  ) {
+    richLabel = "CMap";
+    richContent = (
+      <Suspense
+        fallback={
+          <div className="text-sm text-muted-foreground p-2">
+            Parsing CMap…
+          </div>
+        }
+      >
+        <CMapView data={props.contentStream} />
+      </Suspense>
+    );
+  } else if (getCIDSetHint(props.entry.backlinks)) {
+    richLabel = "CIDSet";
+    richContent = <CIDSetView data={props.contentStream} />;
+  } else if (isImageXObject(props.entry.val)) {
+    richLabel = "Image";
+    richContent = <ImageView entry={props.entry} />;
+  } else if (
+    props.entry.val instanceof BaseStream &&
+    (props.entry.val.dict?.get("Type") as Name)?.name === "ObjStm"
+  ) {
+    richLabel = "Object Stream";
+    richContent = (
+      <ObjStmView
+        objStm={props.entry.ref}
+        objects={props.objects}
+        onRefClick={props.onRefClick}
+      />
+    );
+  } else if (
+    props.entry.val instanceof BaseStream &&
+    (props.entry.val.dict?.get("Type") as Name)?.name === "XRef" &&
+    props.entry.val.dict instanceof Dict
+  ) {
+    richLabel = "XRef";
+    richContent = (
+      <XRefView data={props.contentStream} dict={props.entry.val.dict} />
+    );
   }
 
-  if (isCMap(props.contentStream) || getCMapHint(props.entry.backlinks)) {
+  const streamTextView = (
+    <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
+      {new TextDecoder("utf-8").decode(props.contentStream)}
+    </pre>
+  );
+
+  const streamHexView = <HexView data={props.contentStream} hideAscii />;
+
+  if (!richContent) {
     return (
-      <Tabs defaultValue="rich">
-        <div className="flex items-center">
-          <TabsList className="flex gap-2 w-fit">
-            <TabsTrigger value="rich">CMap</TabsTrigger>
-            <TabsTrigger value="raw">Raw</TabsTrigger>
-          </TabsList>
-        </div>
-        <TabsContent value="rich">
-          <Suspense
-            fallback={
-              <div className="text-sm text-muted-foreground p-2">
-                Parsing CMap…
-              </div>
-            }
-          >
-            <CMapView data={props.contentStream} />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="raw">
-          <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
-            {new TextDecoder("utf-8").decode(props.contentStream)}
-          </pre>
-        </TabsContent>
-      </Tabs>
+      <>
+        {props.dictContent}
+        <Tabs defaultValue="text">
+          <div className="flex items-center">
+            <TabsList className="flex gap-2 w-fit">
+              <TabsTrigger value="text">Text</TabsTrigger>
+              <TabsTrigger value="hex">Hex</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="text">{streamTextView}</TabsContent>
+          <TabsContent value="hex">{streamHexView}</TabsContent>
+        </Tabs>
+      </>
     );
   }
 
   return (
-    <pre className="bg-gray-100 p-2 rounded mt-2 whitespace-pre-line break-all">
-      {new TextDecoder("utf-8").decode(props.contentStream)}
-    </pre>
+    <Tabs defaultValue="rich">
+      <div className="flex items-center">
+        <TabsList className="flex gap-2 w-fit">
+          <TabsTrigger value="rich">{richLabel}</TabsTrigger>
+          <TabsTrigger value="text">Text</TabsTrigger>
+          <TabsTrigger value="hex">Hex</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="rich">{richContent}</TabsContent>
+      <TabsContent value="text">
+        {props.dictContent}
+        {streamTextView}
+      </TabsContent>
+      <TabsContent value="hex">
+        {props.dictContent}
+        {streamHexView}
+      </TabsContent>
+    </Tabs>
   );
 }

@@ -40,7 +40,7 @@ function ListItem(props: {
         </div>
         {props.entry.fromObjStm && (
           <div className="flex-shrink-0 ml-auto">
-            <Ghost className="inline" size={"20"} color="gray" />
+            <Ghost className="inline" size={"20"} color="gray" title="Included in Object stream" />
           </div>
         )}
         {!props.entry.fromObjStm && (

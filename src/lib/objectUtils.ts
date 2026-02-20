@@ -109,6 +109,13 @@ export function getCMapHint(
   )?.hint;
 }
 
+/** Check backlinks for CIDSet hint (from a FontDescriptor). */
+export function getCIDSetHint(
+  backlinks?: { ref: unknown; hint?: string }[],
+): string | undefined {
+  return backlinks?.find((b) => b.hint === "CIDSet")?.hint;
+}
+
 /** Check backlinks for FontFile / FontFile2 / FontFile3 hints. */
 export function getFontFileHint(
   backlinks?: { ref: unknown; hint?: string }[],

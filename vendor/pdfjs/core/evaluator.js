@@ -836,7 +836,7 @@ class PartialEvaluator {
       }
     }
 
-    PDFImage.buildImage({
+    await PDFImage.buildImage({
       xref: this.xref,
       res: resources,
       image,

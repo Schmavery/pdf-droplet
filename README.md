@@ -5,7 +5,6 @@ I couldn't find a PDF viewer that would show me the object level data. This uses
 # TODO
 
 - better support for struct tree stuff, maybe an alternative tree view vs the object list??
-- load all images upfront to display in detail view
 - object list filtering options (image, font, xobj, struct tree elems, objstm)
 - link MCIDs in content streams to their elems
 - ???

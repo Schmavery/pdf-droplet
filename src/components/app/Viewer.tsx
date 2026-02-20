@@ -2,7 +2,7 @@ import PdfView from "@/components/app/PdfView";
 import type { ObjectEntry, ObjectMap } from "@/lib/loadPDF";
 import type { LocalPdfManager } from "@pdfjs/core/pdf_manager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
-import { HexView } from "@/components/app/HexViewVirt";
+import { HexView } from "@/components/app/detail/HexViewVirt";
 import { Button } from "@/components/ui/button";
 import { FlateStream } from "@pdfjs/core/flate_stream";
 import { useMemo } from "react";
