@@ -1,7 +1,7 @@
 import type { ObjectEntry } from "@/lib/loadPDF";
 import { BaseStream } from "@pdfjs/core/base_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
-import { Dict, Ref } from "@pdfjs/core/primitives";
+import { Dict, isRefsEqual, Ref } from "@pdfjs/core/primitives";
 
 const NUMBER_CHARS = [..."❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴"];
 
@@ -124,6 +124,116 @@ export function getFontFileHint(
     (b) =>
       b.hint === "FontFile" || b.hint === "FontFile2" || b.hint === "FontFile3",
   )?.hint;
+}
+
+// ── Filter ──────────────────────────────────────────────────────────────
+
+export function getTypeName(entry: ObjectEntry): string | undefined {
+  if (entry.val instanceof Dict) {
+    return entry.val.get("Type")?.name;
+  }
+  if (entry.val instanceof BaseStream && "dict" in entry.val) {
+    return (entry.val.dict as Dict | undefined)?.get("Type")?.name;
+  }
+  return undefined;
+}
+
+export function getSubtypeName(entry: ObjectEntry): string | undefined {
+  if (entry.val instanceof Dict) {
+    return entry.val.get("Subtype")?.name;
+  }
+  if (entry.val instanceof BaseStream && "dict" in entry.val) {
+    return (entry.val.dict as Dict | undefined)?.get("Subtype")?.name;
+  }
+  return undefined;
+}
+
+export type FilterOption = {
+  id: string;
+  label: string;
+  predicate: (entry: ObjectEntry) => boolean;
+};
+
+function isPrimitive(e: ObjectEntry): boolean {
+  return (
+    e.val === null ||
+    typeof e.val === "boolean" ||
+    typeof e.val === "number" ||
+    typeof e.val === "string" ||
+    e.val instanceof Array ||
+    e.val instanceof Ref
+  );
+}
+
+const CATEGORIZED_FILTERS: FilterOption[] = [
+  {
+    id: "page",
+    label: "Page",
+    predicate: (e) => getTypeName(e) === "Page",
+  },
+  {
+    id: "font",
+    label: "Font",
+    predicate: (e) => {
+      const type = getTypeName(e);
+      return (
+        type === "Font" ||
+        type === "FontDescriptor" ||
+        !!getFontFileHint(e.backlinks)
+      );
+    },
+  },
+  {
+    id: "image",
+    label: "Image",
+    predicate: (e) => getSubtypeName(e) === "Image",
+  },
+  {
+    id: "form-xobject",
+    label: "Form XObject",
+    predicate: (e) => getSubtypeName(e) === "Form",
+  },
+  {
+    id: "struct",
+    label: "Struct Tree",
+    predicate: (e) => {
+      const type = getTypeName(e);
+      return type === "StructTreeRoot" || type === "StructElem";
+    },
+  },
+  {
+    id: "in-objstm",
+    label: "In ObjStm",
+    predicate: (e) => !!e.fromObjStm,
+  },
+  {
+    id: "primitive",
+    label: "Primitives",
+    predicate: isPrimitive,
+  },
+];
+
+export const FILTER_OPTIONS: FilterOption[] = [
+  ...CATEGORIZED_FILTERS,
+  {
+    id: "other",
+    label: "Other",
+    predicate: (e) => !CATEGORIZED_FILTERS.some((f) => f.predicate(e)),
+  },
+];
+
+export function applyFilters(
+  objects: ObjectEntry[],
+  activeFilters: Set<string>,
+  alwaysInclude?: Ref,
+): ObjectEntry[] {
+  if (activeFilters.size === FILTER_OPTIONS.length) return objects;
+  const excluded = FILTER_OPTIONS.filter((f) => !activeFilters.has(f.id));
+  return objects.filter(
+    (entry) =>
+      (alwaysInclude && isRefsEqual(entry.ref, alwaysInclude)) ||
+      !excluded.some((p) => p.predicate(entry)),
+  );
 }
 
 // ── Sort ────────────────────────────────────────────────────────────────

@@ -122,7 +122,6 @@ function DropdownMenuSortItem({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
   sort: "ASC" | "DESC" | undefined;
 }) {
-  console.log(sort, sort === "ASC");
   return (
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
