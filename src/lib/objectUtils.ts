@@ -52,6 +52,10 @@ export function getObjectType(val: ObjectEntry): string {
     case val.val instanceof Dict: {
       const name = val.val.get("Type");
       if (name?.name) {
+        const subtype = val.val.get("Subtype");
+        if (name.name === "Font" && subtype?.name === "Type3") {
+          return `${prefix(val)}Font (Type 3)`;
+        }
         return `${prefix(val)}${name.name}${suffix(val, name.name)}`;
       }
       return `${prefix(val)}Dict` + `${suffix(val)}`;
@@ -64,6 +68,27 @@ export function getObjectType(val: ObjectEntry): string {
         if (name?.name) {
           return `${prefix(val)}${name.name}${suffix({ ...val, nameHint: subtype?.name ?? val.nameHint }, name.name)}`;
         }
+        // Font file backlink check runs before generic subtype
+        // so we get "Font (Type 1)" instead of "CIDFontType0C (FontFile3)"
+        const fontHint = val.backlinks?.find(
+          (b) =>
+            b.hint === "FontFile" ||
+            b.hint === "FontFile2" ||
+            b.hint === "FontFile3",
+        )?.hint;
+        if (fontHint) {
+          let fontType: string;
+          if (fontHint === "FontFile") fontType = "Type 1";
+          else if (fontHint === "FontFile2") fontType = "TrueType";
+          else if (subtype?.name === "OpenType") fontType = "OpenType";
+          else fontType = "Type 1";
+          return `${prefix(val)}Font (${fontType})${suffix(val, fontHint)}`;
+        }
+        const charProcHint = getCharProcHint(val.backlinks);
+        if (charProcHint) {
+          const glyphName = charProcHint.slice("CharProc:".length);
+          return `${prefix(val)}CharProc (${glyphName})`;
+        }
         if (subtype?.name) {
           return `${prefix(val)}${subtype.name}${suffix(val, subtype.name)}`;
         }
@@ -72,22 +97,6 @@ export function getObjectType(val: ObjectEntry): string {
         if (typeof n === "number" && (n === 1 || n === 3 || n === 4)) {
           const csName = n === 1 ? "Gray" : n === 3 ? "RGB" : "CMYK";
           return `${prefix(val)}ICC Profile (${csName})${suffix(val)}`;
-        }
-        // Special case for embedded font files via backlink hint
-        const fontHint = val.backlinks?.find(
-          (b) =>
-            b.hint === "FontFile" ||
-            b.hint === "FontFile2" ||
-            b.hint === "FontFile3",
-        )?.hint;
-        if (fontHint) {
-          const fontType =
-            fontHint === "FontFile"
-              ? "Type 1"
-              : fontHint === "FontFile2"
-                ? "TrueType"
-                : "CFF/OpenType";
-          return `${prefix(val)}Font (${fontType})${suffix(val, fontHint)}`;
         }
       }
       return `${prefix(val)}${val.val instanceof FlateStream ? "FlateStream" : "Stream"}${suffix(
@@ -104,9 +113,8 @@ export function getObjectType(val: ObjectEntry): string {
 export function getCMapHint(
   backlinks?: { ref: unknown; hint?: string }[],
 ): string | undefined {
-  return backlinks?.find(
-    (b) => b.hint === "ToUnicode" || b.hint === "Encoding",
-  )?.hint;
+  return backlinks?.find((b) => b.hint === "ToUnicode" || b.hint === "Encoding")
+    ?.hint;
 }
 
 /** Check backlinks for CIDSet hint (from a FontDescriptor). */
@@ -124,6 +132,13 @@ export function getFontFileHint(
     (b) =>
       b.hint === "FontFile" || b.hint === "FontFile2" || b.hint === "FontFile3",
   )?.hint;
+}
+
+/** Check backlinks for CharProc hint (Type 3 glyph streams). */
+export function getCharProcHint(
+  backlinks?: { ref: unknown; hint?: string }[],
+): string | undefined {
+  return backlinks?.find((b) => b.hint?.startsWith("CharProc:"))?.hint;
 }
 
 // ── Filter ──────────────────────────────────────────────────────────────

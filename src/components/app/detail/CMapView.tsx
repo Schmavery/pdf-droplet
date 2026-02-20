@@ -1,4 +1,4 @@
-import { use, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { inspectCMap, type ParsedCMap } from "@/lib/cmap";
 
 function MetadataTable({ rows }: { rows: [string, string][] }) {
@@ -57,8 +57,7 @@ function MappingTable({ mappings }: { mappings: ParsedCMap["mappings"] }) {
 }
 
 export default function CMapView({ data }: { data: Uint8Array }) {
-  const promise = useMemo(() => inspectCMap(data), [data]);
-  const cmap = use(promise);
+  const cmap = useMemo(() => inspectCMap(data), [data]);
 
   if (!cmap) {
     return (

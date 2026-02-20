@@ -75,7 +75,13 @@ export function findRefs(val: PDFVal, hint?: string) {
     refs.push({ ref: val, hint });
   } else if (val instanceof Dict) {
     for (const [k, v] of val._map.entries()) {
-      refs.push(...findRefs(v, k));
+      if (k === "CharProcs" && v instanceof Dict) {
+        for (const [gname, cv] of v._map.entries()) {
+          refs.push(...findRefs(cv, `CharProc:${gname}`));
+        }
+      } else {
+        refs.push(...findRefs(v, k));
+      }
     }
   } else if (Array.isArray(val)) {
     for (const v of val) {

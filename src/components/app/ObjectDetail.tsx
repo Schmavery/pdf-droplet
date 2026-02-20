@@ -1,12 +1,9 @@
 import React, { useCallback, useContext, useState } from "react";
-import {
-  type ObjectEntry,
-  type ObjectMap,
-  type PDFVal,
-} from "@/lib/loadPDF";
+import { type ObjectEntry, type ObjectMap, type PDFVal } from "@/lib/loadPDF";
 import { BaseStream } from "@pdfjs/core/base_stream";
 import { FlateStream } from "@pdfjs/core/flate_stream";
-import { Dict, Ref } from "@pdfjs/core/primitives";
+import { Dict, Name, Ref } from "@pdfjs/core/primitives";
+import Type3FontView from "@/components/app/detail/Type3FontView";
 import ObjectBacklinks from "./ObjectBacklinks";
 import {
   Collapsible,
@@ -17,6 +14,7 @@ import { ObjectBreadcrumb } from "@/components/app/ObjectBreadcrumb";
 import { Stream } from "@pdfjs/core/stream";
 import ObjectStmRefs from "@/components/app/ObjectStmRefs";
 import ContentStreamView from "@/components/app/detail/ContentStreamView";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Page } from "@pdfjs/core/document";
 import type { SuspenseResource } from "@/lib/utils";
 import type { ModifiedStream } from "@/App";
@@ -30,7 +28,9 @@ function isBinaryString(s: string): boolean {
 }
 
 function stringToHex(s: string): string {
-  return Array.from(s, (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+  return Array.from(s, (c) =>
+    c.charCodeAt(0).toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 const ClearHighlightContext = React.createContext<() => void>(() => {});
@@ -106,9 +106,13 @@ function DictEntryRow({
                 className="inline-flex items-center gap-1 font-mono text-sm cursor-pointer select-text hover:text-blue-600 transition-colors"
               >
                 <Caret open={open} />
-                <span className="text-muted-foreground font-semibold">{keyLabel}</span>
+                <span className="text-muted-foreground font-semibold">
+                  {keyLabel}
+                </span>
                 {summary && (
-                  <span className="text-muted-foreground/60 text-xs ml-1">{summary}</span>
+                  <span className="text-muted-foreground/60 text-xs ml-1">
+                    {summary}
+                  </span>
                 )}
               </button>
             </CollapsibleTrigger>
@@ -135,7 +139,7 @@ function DictEntryRow({
       <td className="py-1 pr-3 text-muted-foreground font-semibold font-mono text-sm whitespace-nowrap align-top select-text">
         {keyLabel}
       </td>
-      <td className="py-1 font-mono text-sm break-all select-text">
+      <td className="py-1 font-mono text-sm break-all select-text min-w-30">
         {renderValue(val, depth, onRefClick)}
       </td>
     </tr>
@@ -248,10 +252,7 @@ export default function ObjectDetail(props: {
   onModifiedStream?: (stream: ModifiedStream | null) => void;
 }) {
   const [activeExpandPath, setActiveExpandPath] = useState(props.expandPath);
-  const clearHighlight = useCallback(
-    () => setActiveExpandPath(undefined),
-    [],
-  );
+  const clearHighlight = useCallback(() => setActiveExpandPath(undefined), []);
 
   const val = props.object?.val;
   if (val instanceof BaseStream) {
@@ -261,155 +262,185 @@ export default function ObjectDetail(props: {
 
   return (
     <ClearHighlightContext.Provider value={clearHighlight}>
-    <div className="p-2 border-l border-gray-200 h-full overflow-auto">
-      <div className="mb-4">
-        <ObjectBreadcrumb
-          path={props.breadcrumb}
-          onNavigate={props.onBreadcrumbNavigate}
-        />
-        {objStmNum && (
-          <div className="text-muted-foreground text-sm">
-            Extracted from ObjStm&nbsp;
-            <button
-              type="button"
-              className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-500 transition-colors font-mono text-sm cursor-pointer"
-              onClick={() => props.onRefClick(objStmNum)}
-            >
-              {objStmNum.toString()}
-            </button>
+      <div className="p-2 border-l border-gray-200 h-full overflow-auto">
+        <div className="mb-4">
+          <ObjectBreadcrumb
+            path={props.breadcrumb}
+            onNavigate={props.onBreadcrumbNavigate}
+          />
+          {objStmNum && (
+            <div className="text-muted-foreground text-sm">
+              Extracted from ObjStm&nbsp;
+              <button
+                type="button"
+                className="text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-500 transition-colors font-mono text-sm cursor-pointer"
+                onClick={() => props.onRefClick(objStmNum)}
+              >
+                {objStmNum.toString()}
+              </button>
+            </div>
+          )}
+        </div>
+        {props.object && (
+          <div>
+            {val instanceof Dict &&
+              ((val.get("Subtype") as Name | undefined)?.name === "Type3" ? (
+                <Tabs defaultValue="font">
+                  <div className="flex items-center">
+                    <TabsList className="flex gap-2 w-fit">
+                      <TabsTrigger value="font">Font</TabsTrigger>
+                      <TabsTrigger value="dict">Dict</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <TabsContent value="font">
+                    <Type3FontView dict={val} onRefClick={props.onRefClick} />
+                  </TabsContent>
+                  <TabsContent value="dict">
+                    <DictEntries
+                      dict={val}
+                      depth={0}
+                      onRefClick={props.onRefClick}
+                      expandPath={activeExpandPath}
+                    />
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <DictEntries
+                  dict={val}
+                  depth={0}
+                  onRefClick={props.onRefClick}
+                  expandPath={activeExpandPath}
+                />
+              ))}
+            {Array.isArray(val) &&
+              (val.length > 0 ? (
+                <DictEntries
+                  array={val}
+                  depth={0}
+                  onRefClick={props.onRefClick}
+                  expandPath={activeExpandPath}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: 14,
+                    color: "#888",
+                  }}
+                >
+                  Array[0] (empty)
+                </span>
+              ))}
+            {typeof val === "string" && (
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 14,
+                  color: val === "" ? "#888" : undefined,
+                }}
+              >
+                {val === "" ? '""' : val}
+              </span>
+            )}
+            {val && val instanceof FlateStream && (
+              <ContentStreamView
+                contentStream={val.buffer.subarray(0, val.bufferLength)}
+                entry={props.object}
+                objects={props.objects}
+                page={props.page}
+                onRefClick={props.onRefClick}
+                onModifiedStream={props.onModifiedStream}
+                dictContent={
+                  val.dict ? (
+                    <DictEntries
+                      dict={val.dict}
+                      depth={0}
+                      onRefClick={props.onRefClick}
+                      expandPath={activeExpandPath}
+                    />
+                  ) : undefined
+                }
+              />
+            )}
+            {val && !(val instanceof FlateStream) && val instanceof Stream && (
+              <ContentStreamView
+                contentStream={val.bytes.slice(val.start, val.end)}
+                entry={props.object}
+                objects={props.objects}
+                page={props.page}
+                onRefClick={props.onRefClick}
+                onModifiedStream={props.onModifiedStream}
+                dictContent={
+                  val.dict ? (
+                    <DictEntries
+                      dict={val.dict}
+                      depth={0}
+                      onRefClick={props.onRefClick}
+                      expandPath={activeExpandPath}
+                    />
+                  ) : undefined
+                }
+              />
+            )}
+            {val &&
+              !(val instanceof FlateStream) &&
+              !(val instanceof Stream) &&
+              val instanceof BaseStream && (
+                <ContentStreamView
+                  contentStream={
+                    "buffer" in val && "bufferLength" in val
+                      ? (val.buffer as Uint8Array).subarray(
+                          0,
+                          val.bufferLength as number,
+                        )
+                      : val.getBytes()
+                  }
+                  entry={props.object}
+                  objects={props.objects}
+                  page={props.page}
+                  onRefClick={props.onRefClick}
+                  onModifiedStream={props.onModifiedStream}
+                  dictContent={
+                    "dict" in val && val.dict ? (
+                      <DictEntries
+                        dict={val.dict as Dict}
+                        depth={0}
+                        onRefClick={props.onRefClick}
+                        expandPath={activeExpandPath}
+                      />
+                    ) : undefined
+                  }
+                />
+              )}
+
+            {/* Fallback for other primitives */}
+            {!(val instanceof Dict) &&
+              !Array.isArray(val) &&
+              !(val instanceof BaseStream) &&
+              typeof val !== "string" && (
+                <span style={{ fontFamily: "monospace", fontSize: 14 }}>
+                  {String(val)}
+                </span>
+              )}
+            {/* Backlinks section */}
+            {props.object.backlinks && props.object.backlinks.length > 0 && (
+              <ObjectBacklinks
+                backlinks={props.object.backlinks}
+                objects={props.objects}
+                onRefClick={props.onRefClick}
+              />
+            )}
+            {/* TODO: For a ObjStm, show the contained objects */}
+            {
+              <ObjectStmRefs
+                objStm={props.object.ref}
+                objects={props.objects}
+                onRefClick={props.onRefClick}
+              />
+            }
           </div>
         )}
       </div>
-      {props.object && (
-        <div>
-          {val instanceof Dict && (
-            <DictEntries
-              dict={val}
-              depth={0}
-              onRefClick={props.onRefClick}
-              expandPath={activeExpandPath}
-            />
-          )}
-          {Array.isArray(val) &&
-            (val.length > 0 ? (
-              <DictEntries
-                array={val}
-                depth={0}
-                onRefClick={props.onRefClick}
-                expandPath={activeExpandPath}
-              />
-            ) : (
-              <span
-                style={{ fontFamily: "monospace", fontSize: 14, color: "#888" }}
-              >
-                Array[0] (empty)
-              </span>
-            ))}
-          {typeof val === "string" && (
-            <span
-              style={{
-                fontFamily: "monospace",
-                fontSize: 14,
-                color: val === "" ? "#888" : undefined,
-              }}
-            >
-              {val === "" ? '""' : val}
-            </span>
-          )}
-          {val && val instanceof FlateStream && (
-            <ContentStreamView
-              contentStream={val.buffer.subarray(0, val.bufferLength)}
-              entry={props.object}
-              objects={props.objects}
-              page={props.page}
-              onRefClick={props.onRefClick}
-              onModifiedStream={props.onModifiedStream}
-              dictContent={
-                val.dict ? (
-                  <DictEntries
-                    dict={val.dict}
-                    depth={0}
-                    onRefClick={props.onRefClick}
-                    expandPath={activeExpandPath}
-                  />
-                ) : undefined
-              }
-            />
-          )}
-          {val && !(val instanceof FlateStream) && val instanceof Stream && (
-            <ContentStreamView
-              contentStream={val.bytes.slice(val.start, val.end)}
-              entry={props.object}
-              objects={props.objects}
-              page={props.page}
-              onRefClick={props.onRefClick}
-              onModifiedStream={props.onModifiedStream}
-              dictContent={
-                val.dict ? (
-                  <DictEntries
-                    dict={val.dict}
-                    depth={0}
-                    onRefClick={props.onRefClick}
-                    expandPath={activeExpandPath}
-                  />
-                ) : undefined
-              }
-            />
-          )}
-          {val &&
-            !(val instanceof FlateStream) &&
-            !(val instanceof Stream) &&
-            val instanceof BaseStream && (
-            <ContentStreamView
-              contentStream={"buffer" in val && "bufferLength" in val
-                ? (val.buffer as Uint8Array).subarray(0, val.bufferLength as number)
-                : val.getBytes()}
-              entry={props.object}
-              objects={props.objects}
-              page={props.page}
-              onRefClick={props.onRefClick}
-              onModifiedStream={props.onModifiedStream}
-              dictContent={
-                "dict" in val && val.dict ? (
-                  <DictEntries
-                    dict={val.dict as Dict}
-                    depth={0}
-                    onRefClick={props.onRefClick}
-                    expandPath={activeExpandPath}
-                  />
-                ) : undefined
-              }
-            />
-          )}
-
-          {/* Fallback for other primitives */}
-          {!(val instanceof Dict) &&
-            !Array.isArray(val) &&
-            !(val instanceof BaseStream) &&
-            typeof val !== "string" && (
-              <span style={{ fontFamily: "monospace", fontSize: 14 }}>
-                {String(val)}
-              </span>
-            )}
-          {/* Backlinks section */}
-          {props.object.backlinks && props.object.backlinks.length > 0 && (
-            <ObjectBacklinks
-              backlinks={props.object.backlinks}
-              objects={props.objects}
-              onRefClick={props.onRefClick}
-            />
-          )}
-          {/* TODO: For a ObjStm, show the contained objects */}
-          {
-            <ObjectStmRefs
-              objStm={props.object.ref}
-              objects={props.objects}
-              onRefClick={props.onRefClick}
-            />
-          }
-        </div>
-      )}
-    </div>
     </ClearHighlightContext.Provider>
   );
 }

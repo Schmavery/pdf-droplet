@@ -1,7 +1,7 @@
 /**
  * Thin wrapper around PDF.js's CMap parser for inspecting ToUnicode streams.
  */
-import { CMap, parseCMap } from "@pdfjs/core/cmap";
+import { CMap, parseCMapSync } from "@pdfjs/core/cmap";
 import { Lexer } from "@pdfjs/core/parser";
 import { Stream } from "@pdfjs/core/stream";
 
@@ -66,17 +66,15 @@ function destinationHex(dst: string | number): string {
  * Parse a ToUnicode CMap stream using PDF.js internals, returning a
  * structured object suitable for display.
  */
-export async function inspectCMap(
+export function inspectCMap(
   data: Uint8Array,
-): Promise<ParsedCMap | null> {
+): ParsedCMap | null {
   try {
     const stream = new Stream(data);
     const lexer = new Lexer(stream);
-    const cmap: InstanceType<typeof CMap> = await parseCMap(
+    const cmap: InstanceType<typeof CMap> = parseCMapSync(
       new CMap(),
       lexer,
-      null,
-      null,
     );
 
     // Determine byte-width of codes from the codespace ranges

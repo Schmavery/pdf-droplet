@@ -968,6 +968,10 @@ class FontRendererFactory {
     }
     return new Type2Compiled(cff, cmap, font.fontMatrix);
   }
+
+  static createFromCFF(cffInfo, cmap, fontMatrix) {
+    return new Type2Compiled(cffInfo, cmap, fontMatrix);
+  }
 }
 
 /**

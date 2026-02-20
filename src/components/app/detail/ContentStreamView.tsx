@@ -14,8 +14,13 @@ import {
   type OpTypes,
   type ParsedOp,
 } from "@/lib/contentStream";
-import { getFontFileHint, getCMapHint, getCIDSetHint } from "@/lib/objectUtils";
-import { isCMap, isFontFile, isICCProfile, isImageXObject } from "@/lib/streamDetection";
+import { getFontFileHint, getCMapHint, getCIDSetHint, getCharProcHint } from "@/lib/objectUtils";
+import {
+  isCMap,
+  isFontFile,
+  isICCProfile,
+  isImageXObject,
+} from "@/lib/streamDetection";
 import type { ObjectEntry, ObjectMap } from "@/lib/loadPDF";
 import { type SuspenseResource } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@components/ui/tabs";
@@ -26,7 +31,13 @@ import { Dict, Name, Ref } from "@pdfjs/core/primitives";
 import { Stream } from "@pdfjs/core/stream";
 import { Info } from "lucide-react";
 import type { ModifiedStream } from "@/App";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Suspense } from "react";
 import CMapView from "./CMapView";
 import FontFileView from "./FontFileView";
@@ -187,9 +198,7 @@ function DescArgs(props: {
       <div className="flex flex-wrap gap-x-2 gap-y-0.5">
         {op.args.map((v, i) => (
           <span key={i} className="font-mono break-all">
-            {doc?.args?.[i] && (
-              <span>{doc.args[i]}:&nbsp;</span>
-            )}
+            {doc?.args?.[i] && <span>{doc.args[i]}:&nbsp;</span>}
             <ArgValView
               val={v}
               op={op}
@@ -299,7 +308,6 @@ const CommandRow = React.memo(function CommandRow(props: {
       )}
 
       <div className="flex items-center gap-2 flex-1 px-2 min-w-0">
-
         {isGroupMarker ? (
           <div className="flex items-center gap-2 text-gray-400 min-w-0">
             <span className="font-mono text-xs">{op.op}</span>
@@ -317,9 +325,7 @@ const CommandRow = React.memo(function CommandRow(props: {
                   showTooltip(
                     <div className="max-w-sm">
                       {doc.doc}
-                      {doc.detail && (
-                        <div className="mt-1">{doc.detail}</div>
-                      )}
+                      {doc.detail && <div className="mt-1">{doc.detail}</div>}
                     </div>,
                     e.currentTarget as HTMLElement,
                   )
@@ -535,6 +541,7 @@ export default function ContentStreamView(props: {
   const isPageContents =
     props.entry.backlinks?.find((backlink) => backlink.hint !== undefined)
       ?.hint === "Contents";
+  const isCharProc = getCharProcHint(props.entry.backlinks);
 
   const { onModifiedStream } = props;
   const entryRef = props.entry.ref;
@@ -543,14 +550,13 @@ export default function ContentStreamView(props: {
   >(() => {
     if (!onModifiedStream || (!isPageContents && !isFormXObject))
       return undefined;
-    return (bytes) =>
-      onModifiedStream(bytes ? { ref: entryRef, bytes } : null);
+    return (bytes) => onModifiedStream(bytes ? { ref: entryRef, bytes } : null);
   }, [onModifiedStream, isPageContents, isFormXObject, entryRef]);
 
   let richLabel: string | undefined;
   let richContent: React.ReactNode | undefined;
 
-  if (isFormXObject || isPageContents) {
+  if (isFormXObject || isPageContents || isCharProc) {
     richLabel = "Content Stream";
     richContent = (
       <Suspense fallback={<div>Loading?...</div>}>
@@ -578,15 +584,7 @@ export default function ContentStreamView(props: {
   ) {
     richLabel = "CMap";
     richContent = (
-      <Suspense
-        fallback={
-          <div className="text-sm text-muted-foreground p-2">
-            Parsing CMap…
-          </div>
-        }
-      >
-        <CMapView data={props.contentStream} />
-      </Suspense>
+      <CMapView data={props.contentStream} />
     );
   } else if (getCIDSetHint(props.entry.backlinks)) {
     richLabel = "CIDSet";

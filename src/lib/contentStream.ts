@@ -126,9 +126,7 @@ export function serializeOps(
       segments.push(toLatin1("EI\n"));
     } else {
       const argsStr = op.args.map(printArgVal).join(" ");
-      segments.push(
-        toLatin1(argsStr ? `${argsStr} ${op.op}\n` : `${op.op}\n`),
-      );
+      segments.push(toLatin1(argsStr ? `${argsStr} ${op.op}\n` : `${op.op}\n`));
     }
   }
 
@@ -175,8 +173,16 @@ const OP_DOCS: Record<string, DocEntry> = {
     args: ["name"],
   },
   // graphics state
-  q: { type: "state", label: "Save graphics state", doc: "push graphics state" },
-  Q: { type: "state", label: "Restore graphics state", doc: "pop graphics state" },
+  q: {
+    type: "state",
+    label: "Save graphics state",
+    doc: "push graphics state",
+  },
+  Q: {
+    type: "state",
+    label: "Restore graphics state",
+    doc: "pop graphics state",
+  },
   cm: {
     type: "state",
     label: "Transform matrix",
@@ -246,7 +252,11 @@ const OP_DOCS: Record<string, DocEntry> = {
     doc: "set fill color space",
     args: ["name"],
   },
-  SC: { type: "color", label: "Stroke color", doc: "set stroke color (per CS)" },
+  SC: {
+    type: "color",
+    label: "Stroke color",
+    doc: "set stroke color (per CS)",
+  },
   sc: { type: "color", label: "Fill color", doc: "set fill color (per cs)" },
   SCN: {
     type: "color",
@@ -325,7 +335,12 @@ const OP_DOCS: Record<string, DocEntry> = {
   S: { type: "paint", label: "Stroke path", doc: "stroke" },
   s: { type: "paint", label: "Close & stroke", doc: "close & stroke" },
   f: { type: "paint", label: "Fill path", doc: "fill", detail: "Non-zero" },
-  "f*": { type: "paint", label: "Fill path (EO)", doc: "fill", detail: "Even-odd" },
+  "f*": {
+    type: "paint",
+    label: "Fill path (EO)",
+    doc: "fill",
+    detail: "Even-odd",
+  },
   B: {
     type: "paint",
     label: "Fill & stroke",
@@ -356,8 +371,16 @@ const OP_DOCS: Record<string, DocEntry> = {
     doc: "end path, no paint",
     detail: "Used after W / W* operators to establish the new clipping path.",
   },
-  W: { type: "paint", label: "Set clipping path", doc: "set clip", detail: "Non-zero" },
-  "W*": { type: "paint", label: "Set clipping (EO)", doc: "set clip", detail: "Even-odd" },
+  W: {
+    type: "paint",
+    label: "Set clip path (non-zero)",
+    doc: "set clip (non-zero)",
+  },
+  "W*": {
+    type: "paint",
+    label: "Set clip path (even-odd)",
+    doc: "set clip (even-odd)",
+  },
   // text
   BT: { type: "text", label: "Begin text", doc: "begin text object" },
   ET: { type: "text", label: "End text", doc: "end text object" },
@@ -454,7 +477,11 @@ const OP_DOCS: Record<string, DocEntry> = {
     args: ["name"],
   },
   BI: { type: "image", label: "Inline image begin", doc: "begin inline image" },
-  ID: { type: "image", label: "Inline image data", doc: "begin inline image data" },
+  ID: {
+    type: "image",
+    label: "Inline image data",
+    doc: "begin inline image data",
+  },
   EI: { type: "image", label: "Inline image end", doc: "end inline image" },
   sh: {
     type: "image",
@@ -463,8 +490,16 @@ const OP_DOCS: Record<string, DocEntry> = {
     args: ["name"],
   },
   // Type3
-  d0: { type: "text", label: "Glyph width", doc: "glyph width (Type3)" },
-  d1: { type: "text", label: "Glyph width & bbox", doc: "glyph width & bbox (Type3)" },
+  d0: {
+    type: "text",
+    label: "Set glyph width",
+    doc: "set glyph width (Type3)",
+  },
+  d1: {
+    type: "text",
+    label: "Set glyph width & bbox",
+    doc: "set glyph width and bounding box (Type3)",
+  },
 };
 
 export const OP_OPEN = new Set(["q", "BT", "BDC", "BMC"]);
@@ -862,4 +897,3 @@ function toOps(
   }
   return out;
 }
-

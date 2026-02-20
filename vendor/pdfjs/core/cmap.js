@@ -588,14 +588,12 @@ function parseCMapName(cMap, lexer) {
 }
 
 /**
- * Parse a CMap stream into a CMap object.
+ * Core CMap parsing loop — populates `cMap` from the lexer token stream.
  * @param {CMap} cMap - Target CMap instance to populate.
  * @param {import("./parser.js").Lexer} lexer - Lexer wrapping the CMap stream.
- * @param {Function|null} fetchBuiltInCMap - Callback to fetch built-in CMaps (may be null for embedded ToUnicode CMaps).
- * @param {string|null} useCMap - Name of a parent CMap to extend, or null.
- * @returns {Promise<CMap>}
+ * Returns the name of an embedded usecmap directive, if any.
  */
-async function parseCMap(cMap, lexer, fetchBuiltInCMap, useCMap) {
+function parseCMapTokens(cMap, lexer) {
   let previous, embeddedUseCMap;
   objLoop: while (true) {
     try {
@@ -643,10 +641,21 @@ async function parseCMap(cMap, lexer, fetchBuiltInCMap, useCMap) {
       continue;
     }
   }
+  return embeddedUseCMap;
+}
+
+/**
+ * Parse a CMap stream into a CMap object.
+ * @param {CMap} cMap - Target CMap instance to populate.
+ * @param {import("./parser.js").Lexer} lexer - Lexer wrapping the CMap stream.
+ * @param {Function|null} fetchBuiltInCMap - Callback to fetch built-in CMaps (may be null for embedded ToUnicode CMaps).
+ * @param {string|null} useCMap - Name of a parent CMap to extend, or null.
+ * @returns {Promise<CMap>}
+ */
+async function parseCMap(cMap, lexer, fetchBuiltInCMap, useCMap) {
+  const embeddedUseCMap = parseCMapTokens(cMap, lexer);
 
   if (!useCMap && embeddedUseCMap) {
-    // Load the useCMap definition from the file only if there wasn't one
-    // specified.
     useCMap = embeddedUseCMap;
   }
   if (useCMap) {
@@ -694,8 +703,8 @@ async function createBuiltInCMap(name, fetchBuiltInCMap) {
   const cMap = new CMap(true);
 
   if (isCompressed) {
-    return new BinaryCMapReader().process(cMapData, cMap, useCMap =>
-      extendCMap(cMap, fetchBuiltInCMap, useCMap)
+    return new BinaryCMapReader().process(cMapData, cMap, (useCMap) =>
+      extendCMap(cMap, fetchBuiltInCMap, useCMap),
     );
   }
   const lexer = new Lexer(new Stream(cMapData));
@@ -711,7 +720,7 @@ class CMapFactory {
         /* cMap = */ new CMap(),
         /* lexer = */ new Lexer(encoding),
         fetchBuiltInCMap,
-        useCMap
+        useCMap,
       );
 
       if (parsedCMap.isIdentityCMap) {
@@ -723,4 +732,16 @@ class CMapFactory {
   }
 }
 
-export { CMap, CMapFactory, IdentityCMap, parseCMap };
+/**
+ * Synchronous CMap parser for embedded ToUnicode CMaps that don't reference
+ * external/built-in CMaps.  Throws if a `usecmap` directive is encountered.
+ */
+function parseCMapSync(cMap, lexer) {
+  const embeddedUseCMap = parseCMapTokens(cMap, lexer);
+  if (embeddedUseCMap) {
+    throw new Error("parseCMapSync: usecmap directive not supported");
+  }
+  return cMap;
+}
+
+export { CMap, CMapFactory, IdentityCMap, parseCMap, parseCMapSync };

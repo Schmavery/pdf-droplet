@@ -11,9 +11,12 @@ import {
   readNameTable,
 } from "@pdfjs/core/fonts";
 import { FontRendererFactory, lookupCmap } from "@pdfjs/core/font_renderer";
+import { CFFParser } from "@pdfjs/core/cff_parser";
+import { Type1Font } from "@pdfjs/core/type1_font";
 import { FONT_IDENTITY_MATRIX } from "@pdfjs/shared/util";
 import { Stream } from "@pdfjs/core/stream";
 import { readAscii } from "@/lib/utils";
+import { isCFFFile } from "@/lib/streamDetection";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -95,10 +98,15 @@ export interface GlyphEntry {
   id: number;
   svgPath: string;
   isGlyphIndex?: boolean;
+  glyphName?: string;
+  /** Resolved Unicode character from ToUnicode CMap */
+  unicodeChar?: string;
+  /** Optional object ref (e.g. CharProc stream) for navigation */
+  ref?: import("@pdfjs/core/primitives").Ref;
 }
 
 export interface FontInspection {
-  format: "TrueType" | "OpenType (CFF)";
+  format: "TrueType" | "OpenType";
   tables: FontTableEntry[];
   head?: FontHeadInfo;
   hhea?: FontHheaInfo;
@@ -268,7 +276,7 @@ export function inspectFont(data: Uint8Array): FontInspection | null {
   if (!isTrueTypeFile(stream) && !isOpenTypeFile(stream)) return null;
 
   const format: FontInspection["format"] = isOpenTypeFile(stream)
-    ? "OpenType (CFF)"
+    ? "OpenType"
     : "TrueType";
 
   // Parse sfnt table directory using the vendored helpers
@@ -410,5 +418,267 @@ export function inspectFont(data: Uint8Array): FontInspection | null {
     getGlyphsByIndex,
   };
 }
+
+// ── CFF (Type1C / CIDFontType0C) inspection ───────────────────────────
+
+export interface CFFInspection {
+  format: "Type 1" | "Type 1 (CID)";
+  header: { major: number; minor: number; hdrSize: number; offSize: number };
+  fontName?: string;
+  identityEntries: [string, string][];
+  metricsEntries: [string, string][];
+  notice?: string;
+  numGlyphs: number;
+  isCIDFont: boolean;
+  glyphError?: string;
+  getGlyphsByIndex: () => GlyphEntry[];
+}
+
+function cffSidString(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  strings: any,
+  sid: number | undefined | null,
+): string | undefined {
+  if (sid == null) return undefined;
+  try {
+    return strings.get(sid);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Inspect bare CFF (Compact Font Format) data, typically from FontFile3
+ * entries with Subtype Type1C or CIDFontType0C.
+ */
+export function inspectCFFFont(data: Uint8Array): CFFInspection | null {
+  if (!isCFFFile(data)) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let cff: any;
+  try {
+    const parser = new CFFParser(new Stream(data), {}, false);
+    cff = parser.parse();
+  } catch (ex) {
+    console.warn("CFF parse failed:", ex);
+    return null;
+  }
+
+  const header = {
+    major: cff.header?.major ?? data[0],
+    minor: cff.header?.minor ?? data[1],
+    hdrSize: cff.header?.hdrSize ?? data[2],
+    offSize: cff.header?.offSize ?? data[3],
+  };
+
+  const fontName = cff.names?.[0] ?? undefined;
+  const topDict = cff.topDict;
+  const strings = cff.strings;
+
+  // Helpers to extract SID strings and numeric values from the top dict
+  const getSid = (name: string): string | undefined => {
+    const sid = topDict?.getByName(name);
+    return cffSidString(strings, sid);
+  };
+  const getNum = (name: string): number | undefined => {
+    try {
+      const val = topDict?.getByName(name);
+      return val != null && val !== 0 ? val : undefined;
+    } catch { return undefined; }
+  };
+
+  const numGlyphs = cff.charStrings?.count ?? 0;
+
+  // ── Identity (concise header) ──
+  const identityEntries: [string, string][] = [];
+  const fullName = getSid("FullName");
+  const familyName = getSid("FamilyName");
+  if (fullName) identityEntries.push(["Full Name", fullName]);
+  else if (familyName) identityEntries.push(["Family", familyName]);
+  const version = getSid("version");
+  if (version) identityEntries.push(["Version", version]);
+  identityEntries.push(["Glyphs", String(numGlyphs)]);
+  const weight = getSid("Weight");
+  if (weight) identityEntries.push(["Weight", weight]);
+  const copyright = getSid("Copyright");
+  if (copyright) identityEntries.push(["Copyright", copyright]);
+
+  // ── Metrics (detailed, shown below glyphs) ──
+  const metricsEntries: [string, string][] = [];
+
+  if (fullName && familyName) metricsEntries.push(["Family", familyName]);
+  const notice = getSid("Notice");
+
+  const fontBBox = topDict?.getByName("FontBBox");
+  if (fontBBox && Array.isArray(fontBBox) && fontBBox.some((v: number) => v !== 0)) {
+    metricsEntries.push(["Bounding Box", `[${fontBBox.join(", ")}]`]);
+  }
+
+  const fontMatrix = topDict?.getByName("FontMatrix");
+  if (fontMatrix && Array.isArray(fontMatrix)) {
+    metricsEntries.push(["FontMatrix", `[${fontMatrix.map((v: number) => v.toPrecision(4)).join(", ")}]`]);
+  }
+
+  const italicAngle = getNum("ItalicAngle");
+  if (italicAngle != null) metricsEntries.push(["Italic Angle", `${italicAngle}°`]);
+  const isFixed = topDict?.getByName("isFixedPitch");
+  if (isFixed) metricsEntries.push(["Fixed Pitch", "Yes"]);
+
+  const ulPos = getNum("UnderlinePosition");
+  const ulThick = getNum("UnderlineThickness");
+  if (ulPos != null || ulThick != null) {
+    metricsEntries.push(["Underline", `pos ${ulPos ?? -100}, thickness ${ulThick ?? 50}`]);
+  }
+
+  const charstringType = getNum("CharstringType");
+  if (charstringType != null) metricsEntries.push(["Charstring Type", String(charstringType)]);
+  const paintType = getNum("PaintType");
+  if (paintType != null) metricsEntries.push(["Paint Type", String(paintType)]);
+  const strokeWidth = getNum("StrokeWidth");
+  if (strokeWidth != null) metricsEntries.push(["Stroke Width", String(strokeWidth)]);
+
+  if (cff.isCIDFont) {
+    getSid("ROS") && metricsEntries.push(["CID Registry", getSid("ROS")!]);
+    const cidVer = getNum("CIDFontVersion");
+    if (cidVer != null) metricsEntries.push(["CID Font Version", String(cidVer)]);
+    const cidCount = getNum("CIDCount");
+    if (cidCount != null) metricsEntries.push(["CID Count", String(cidCount)]);
+    metricsEntries.push(["FDArray Size", String(cff.fdArray?.length ?? 0)]);
+  }
+
+  metricsEntries.push(["Header", `v${header.major}.${header.minor}, hdrSize=${header.hdrSize}, offSize=${header.offSize}`]);
+  const charsetFormat = cff.charset?.format;
+  if (charsetFormat != null) metricsEntries.push(["Charset Format", String(charsetFormat)]);
+  if (cff.encoding) {
+    const enc = cff.encoding.predefined
+      ? `Predefined (${cff.encoding.format})`
+      : `Custom (format ${cff.encoding.format})`;
+    metricsEntries.push(["Encoding", enc]);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let compiledFont: any = null;
+  let glyphError: string | undefined;
+  try {
+    const cffInfo = {
+      glyphs: cff.charStrings.objects,
+      subrs: cff.topDict.privateDict?.subrsIndex?.objects,
+      gsubrs: cff.globalSubrIndex?.objects,
+      isCFFCIDFont: cff.isCIDFont,
+      fdSelect: cff.fdSelect,
+      fdArray: cff.fdArray,
+    };
+    compiledFont = FontRendererFactory.createFromCFF(
+      cffInfo,
+      null,
+      fontMatrix ?? FONT_IDENTITY_MATRIX,
+    );
+  } catch (ex) {
+    glyphError = `Glyph compilation failed: ${ex instanceof Error ? ex.message : String(ex)}`;
+    console.warn("CFF glyph compilation:", glyphError, ex);
+  }
+
+  function getGlyphsByIndex(): GlyphEntry[] {
+    if (!compiledFont?.glyphs) return [];
+    const entries: GlyphEntry[] = [];
+    for (let i = 1; i < compiledFont.glyphs.length; i++) {
+      try {
+        const glyph = compiledFont.glyphs[i];
+        if (!glyph?.length) continue;
+        const path = compiledFont.compileGlyph(glyph, i);
+        if (!path || path === "Z") continue;
+        if (!/[LCQT]/i.test(path)) continue;
+        entries.push({ id: i, svgPath: path, isGlyphIndex: true });
+        if (entries.length >= 512) break;
+      } catch {
+        continue;
+      }
+    }
+    return entries;
+  }
+
+  return {
+    format: cff.isCIDFont ? "Type 1 (CID)" : "Type 1",
+    header,
+    fontName,
+    identityEntries,
+    metricsEntries,
+    notice,
+    numGlyphs,
+    isCIDFont: cff.isCIDFont,
+    glyphError,
+    getGlyphsByIndex,
+  };
+}
+
+// ── PFB (bare Type 1) inspection ───────────────────────────────────────
+
+function extractPFBFontName(data: Uint8Array): string | undefined {
+  const headerLen = Math.min(data.length, 4096);
+  const text = new TextDecoder("ascii", { fatal: false }).decode(
+    data.subarray(0, headerLen),
+  );
+  const match = text.match(/\/FontName\s+\/(\S+)/);
+  return match?.[1];
+}
+
+/**
+ * Inspect a bare PFB (Type 1) font file. Converts to CFF via the vendor's
+ * Type1Font class, then delegates to inspectCFFFont for the actual inspection.
+ */
+export function inspectType1Font(data: Uint8Array): CFFInspection | null {
+  if (data.length < 6 || data[0] !== 0x80 || data[1] !== 0x01) return null;
+
+  const fontName = extractPFBFontName(data) ?? "Type1Font";
+
+  try {
+    const stream = new Stream(data);
+    const properties = {
+      length1: data.length,
+      length2: 0,
+      fontMatrix: [0.001, 0, 0, 0.001, 0, 0],
+      bbox: [0, 0, 0, 0],
+      privateData: {},
+    };
+    const t1font = new Type1Font(fontName, stream, properties);
+    const cffData = new Uint8Array(t1font.data);
+    return inspectCFFFont(cffData);
+  } catch (ex) {
+    console.warn("Type 1 PFB inspection failed:", ex);
+    return null;
+  }
+}
+
+// ── Normalized view model ─────────────────────────────────────────────
+
+export type NormalizedFont = {
+  format: string;
+  badgeColor: string;
+  displayName?: string;
+  extraBadges: { label: string; color: string }[];
+  identityRows: [string, string][];
+  metricsRows: [string, string][];
+  glyphError?: string;
+
+  hasCmap: boolean;
+  getGlyphSVG: (codePoint: number) => string | null;
+  getMappedCodePoints: () => number[];
+  getGlyphsByIndex: () => GlyphEntry[];
+
+  viewBox: string;
+  yMax: number;
+
+  notice?: string;
+  tables?: FontTableEntry[];
+  cmapSubtables?: FontCmapSubtable[];
+};
+
+export const BADGE_COLORS: Record<string, string> = {
+  TrueType: "bg-emerald-100 text-emerald-800",
+  OpenType: "bg-sky-100 text-sky-800",
+  "Type 1": "bg-violet-100 text-violet-800",
+  "Type 1 (CID)": "bg-violet-100 text-violet-800",
+  "Type 3": "bg-orange-100 text-orange-800",
+};
 
 // ── Detection helpers ──────────────────────────────────────────────────

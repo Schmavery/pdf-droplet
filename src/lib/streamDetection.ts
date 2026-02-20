@@ -50,9 +50,31 @@ export function isFontFile(data: Uint8Array): boolean {
   ) {
     return true;
   }
+  // PFB (Type 1) header
   if (data[0] === 0x80 && data[1] === 0x01) return true;
-  if (data[0] === 1 && data[1] === 0 && data.length > 4) return true;
+  if (isCFFFile(data)) return true;
   return false;
+}
+
+/**
+ * Detect bare CFF (Compact Font Format) data, used by FontFile3 entries
+ * with Subtype Type1C or CIDFontType0C. CFF starts with a header where
+ * byte 0 is the major version (1), byte 1 is the minor version (0),
+ * byte 2 is the header size (typically 4), and byte 3 is the offSize (1–4).
+ */
+export function isCFFFile(data: Uint8Array): boolean {
+  if (data.length < 4) return false;
+  const major = data[0];
+  const minor = data[1];
+  const hdrSize = data[2];
+  const offSize = data[3];
+  return (
+    major === 1 &&
+    minor === 0 &&
+    hdrSize >= 4 &&
+    offSize >= 1 &&
+    offSize <= 4
+  );
 }
 
 // ── CMaps ───────────────────────────────────────────────────────────────

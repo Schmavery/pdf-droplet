@@ -37,24 +37,17 @@ export function HexView(props: {
     t === "search"
       ? "bg-blue-200 text-blue-950"
       : t === "obj"
-      ? "bg-amber-200 text-amber-950"
-      : defaultColor;
+        ? "bg-amber-200 text-amber-950"
+        : defaultColor;
 
   const Row = (props: RowComponentProps) => {
-    if (hideAscii && props.index === 0) {
-      return (
-        <div style={props.style} className="text-[10px] font-mono text-muted-foreground select-none px-1">
-          hex
-        </div>
-      );
-    }
-    const rowIndex = hideAscii ? props.index - 1 : props.index;
+    const rowIndex = props.index;
     const start = rowIndex * bytesPerRow;
     const slice = bytes.slice(start, start + bytesPerRow);
 
     const renderGroup = (
       config: { defaultColor: string; spacer: boolean },
-      render: (b: number) => string
+      render: (b: number) => string,
     ) => {
       const out: React.ReactNode[] = [];
       let currentGroup: string[] = [];
@@ -63,7 +56,7 @@ export function HexView(props: {
       const flush = (
         group: string[],
         type: HighlightType | undefined,
-        key: number
+        key: number,
       ) => {
         if (!group.length) return;
         out.push(
@@ -74,7 +67,7 @@ export function HexView(props: {
             } font-mono ${highlightColor(config.defaultColor, type)}`}
           >
             {group.join(config.spacer ? " " : "")}
-          </span>
+          </span>,
         );
       };
 
@@ -94,7 +87,7 @@ export function HexView(props: {
 
     const hexSpans = renderGroup(
       { defaultColor: "text-accent-foreground", spacer: true },
-      (b) => b.toString(16).padStart(2, "0")
+      (b) => b.toString(16).padStart(2, "0"),
     );
 
     if (hideAscii) {
@@ -113,7 +106,7 @@ export function HexView(props: {
 
     const asciiSpans = renderGroup(
       { defaultColor: "text-muted-foreground", spacer: false },
-      (b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ".")
+      (b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."),
     );
 
     return (
